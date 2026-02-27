@@ -8,7 +8,7 @@ import ColorCodedSentence from "@/components/ColorCodedSentence";
 import DetailView from "@/components/DetailView";
 import AudioPlayer from "@/components/AudioPlayer";
 import SentenceLibrary from "@/components/SentenceLibrary";
-import SentenceTagEditor from "@/components/SentenceTagEditor";
+import InlineTagBadge from "@/components/InlineTagBadge";
 
 export default function Home() {
   const [currentAnalysis, setCurrentAnalysis] = useState<SentenceRecord | null>(null);
@@ -18,7 +18,7 @@ export default function Home() {
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [isTagSaving, setIsTagSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tagError, setTagError] = useState<string | null>(null);
+  const [, setTagError] = useState<string | null>(null);
 
   const fetchLibrary = useCallback(async () => {
     setIsLibraryLoading(true);
@@ -119,21 +119,51 @@ export default function Home() {
   };
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 16px" }}>
-      <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "24px", color: "#1F2937" }}>
+    <div
+      style={{
+        maxWidth: "1100px",
+        margin: "0 auto",
+        padding: "32px 24px",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        color: "#1F2937",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: "28px",
+          fontWeight: 300,
+          letterSpacing: "-0.02em",
+          marginBottom: "28px",
+          color: "#374151",
+        }}
+      >
         Learn English from Sentences
       </h1>
 
       {/* Sentence Input */}
-      <section style={{ marginBottom: "32px" }}>
+      <section style={{ marginBottom: "28px" }}>
         <SentenceInput onSubmit={handleSubmit} isLoading={isLoading} error={error} />
       </section>
 
       {/* Analysis Display */}
       {currentAnalysis && (
-        <section style={{ marginBottom: "32px", border: "1px solid #E5E7EB", borderRadius: "8px", overflow: "hidden" }}>
+        <section
+          style={{
+            marginBottom: "32px",
+            borderRadius: "10px",
+            backgroundColor: "#FAFBFC",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+            overflow: "hidden",
+          }}
+        >
           {currentAnalysis.analysis.corrections.length > 0 && (
-            <div style={{ padding: "16px", borderBottom: "1px solid #E5E7EB" }}>
+            <div
+              style={{
+                padding: "14px 20px",
+                borderBottom: "1px solid #F0F1F3",
+              }}
+            >
               <CorrectionComparison
                 originalSentence={currentAnalysis.analysis.originalSentence}
                 correctedSentence={currentAnalysis.analysis.correctedSentence}
@@ -142,39 +172,66 @@ export default function Home() {
             </div>
           )}
 
-          <div style={{ padding: "16px", borderBottom: "1px solid #E5E7EB" }}>
-            <ColorCodedSentence
-              components={currentAnalysis.analysis.components}
-              vocabularyWords={currentAnalysis.analysis.vocabulary.map(v => v.word)}
-              onComponentClick={handleComponentClick}
-              selectedComponent={selectedComponent}
-            />
+          {/* Sentence header: color-coded sentence + tag badge + audio */}
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #F0F1F3",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: 1, lineHeight: 1.7 }}>
+                <ColorCodedSentence
+                  components={currentAnalysis.analysis.components}
+                  correctedSentence={currentAnalysis.analysis.correctedSentence}
+                  vocabularyWords={currentAnalysis.analysis.vocabulary.map(v => v.word)}
+                  onComponentClick={handleComponentClick}
+                  selectedComponent={selectedComponent}
+                />
+              </div>
+              <InlineTagBadge
+                currentTag={currentAnalysis.tag ?? null}
+                existingTags={existingTags}
+                onSaveTag={handleSaveTag}
+                isSaving={isTagSaving}
+              />
+              <AudioPlayer audioFilename={currentAnalysis.audioFilename} />
+            </div>
           </div>
 
-          <div style={{ padding: "16px", borderBottom: "1px solid #E5E7EB" }}>
-            <AudioPlayer audioFilename={currentAnalysis.audioFilename} />
-          </div>
-
-          <div style={{ padding: "16px", borderBottom: "1px solid #E5E7EB" }}>
-            <SentenceTagEditor
-              currentTag={currentAnalysis.tag ?? null}
-              existingTags={existingTags}
-              onSaveTag={handleSaveTag}
-              isSaving={isTagSaving}
-              error={tagError}
-            />
-          </div>
-
+          {/* Two-column analysis section */}
           <DetailView analysis={currentAnalysis.analysis} selectedComponent={selectedComponent} />
         </section>
       )}
 
       {/* Sentence Library */}
       <section>
-        <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "12px", color: "#1F2937" }}>
+        <h2
+          style={{
+            fontSize: "15px",
+            fontWeight: 500,
+            textTransform: "uppercase" as const,
+            letterSpacing: "0.04em",
+            marginBottom: "12px",
+            color: "#6B7280",
+          }}
+        >
           Sentence Library
         </h2>
-        <div style={{ border: "1px solid #E5E7EB", borderRadius: "8px", overflow: "hidden" }}>
+        <div
+          style={{
+            borderRadius: "10px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+            overflow: "hidden",
+          }}
+        >
           <SentenceLibrary
             sentences={sentences}
             onSelect={handleLibrarySelect}

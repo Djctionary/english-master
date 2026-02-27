@@ -2,13 +2,41 @@
 
 ## Overview
 
-A full-stack single-page application built with Next.js (App Router) for deep English sentence learning. Users submit English sentences, and the system first auto-corrects spelling/grammar errors, then performs multi-layer linguistic analysis via OpenAI GPT API and generates audio via OpenAI TTS API. Results are displayed with color-coded grammar components, special highlighting for difficult vocabulary words, a side-by-side correction comparison, and expandable detail views with rich vocabulary explanations. All analysis results and audio are persisted to SQLite and local filesystem, forming a chronological sentence library for review.
+A full-stack single-page application built with Next.js (App Router) for deep English sentence learning. Users submit English sentences, and the system first auto-corrects spelling/grammar errors, then performs multi-layer linguistic analysis (clause structure, phrase-level chunking, CET-4+ vocabulary, deep structural analysis) via OpenAI GPT API and generates audio via OpenAI TTS API. Results are displayed compactly within one viewport: a color-coded sentence with clickable parts showing inline details, whole-sentence correction comparison, vocabulary explanations, and deep structure breakdowns. All analysis results and audio are persisted to SQLite and local filesystem, forming a chronological sentence library for review.
 
-The target user scored 80 on TOEFL and is weak at pronunciation, listening, and complex/hard words. The vocabulary analysis is tailored to emphasize difficult words with rich, multi-sentence explanations.
+The target user scored 80 on TOEFL with CET-4 vocabulary level (~3500 words). The vocabulary analysis targets words above CET-4 level, and the deep structure analysis breaks down how complex sentences are constructed in accessible language.
 
 The entire application is English-only — all UI text, analysis output, labels, and prompts are in English.
 
+The UI uses a modern, minimalist design with clean typography, generous whitespace, and subtle colors. The analysis section uses a two-column layout (sentence structure on the left, vocabulary cards on the right) so learners can study both simultaneously. Context tags are displayed as small inline badges next to the sentence, not as a separate editor section. Vocabulary definitions are concise (one sentence) with an example sentence for each word.
+
 Tech stack: Next.js 15 (App Router) + TypeScript + SQLite (better-sqlite3) + OpenAI API
+
+## Core User Flow
+
+```mermaid
+flowchart TD
+    A[User inputs English sentence] --> B{Input valid?}
+    B -->|Empty/whitespace| C[Show validation error]
+    B -->|Valid| D{Sentence exists in DB?}
+    D -->|Yes| E[Return cached analysis + audio]
+    D -->|No| F[Call OpenAI GPT API]
+    F --> G[Grammar correction + Multi-layer analysis + Deep structure analysis]
+    G --> H[Call OpenAI TTS API for corrected sentence]
+    H -->|Success| I[Save audio file]
+    H -->|Failure| J[Continue without audio]
+    I --> K[Save SentenceRecord to SQLite]
+    J --> K
+    K --> L[Return analysis result to frontend]
+    E --> L
+    L --> M[Display compact analysis view]
+    M --> N[Color-coded sentence with clickable parts]
+    M --> O[Whole-sentence correction comparison]
+    M --> P[Deep structure analysis]
+    M --> Q[Vocabulary explanations]
+    M --> R[Grammar notes + Paraphrase]
+    N -->|User clicks a part| S[Show inline detail below sentence]
+```
 
 ## Architecture
 
@@ -18,8 +46,11 @@ graph TB
         A[SentenceInput] --> B[AnalysisDisplay]
         B --> CC[CorrectionComparison]
         B --> C[ColorCodedSentence]
-        B --> D[DetailView]
+        B --> D[InlineDetail]
         B --> E[AudioPlayer]
+        B --> SA[StructureAnalysis]
+        B --> ITB[InlineTagBadge]
+        B --> VC[VocabularyCard]
         F[SentenceLibrary] --> B
     end
 
@@ -41,7 +72,7 @@ graph TB
     end
 
     A -->|Submit sentence| G
-    G -->|Correction + Analysis request| K
+    G -->|Correction + Analysis + Structure| K
     G -->|Audio generation for corrected sentence| L
     G -->|Store record| M
     G -->|Store audio| N
@@ -69,15 +100,15 @@ sequenceDiagram
         DB-->>API: Return existing record
         API-->>Frontend: Return cached analysis + audio path
     else Sentence is new
-        API->>GPT: Send correction + analysis request (single call)
-        GPT-->>API: Return corrections + structured JSON analysis
+        API->>GPT: Send correction + analysis + structure request (single call)
+        GPT-->>API: Return corrections + analysis + deep structure JSON
         API->>TTS: Send audio generation for corrected sentence
         TTS-->>API: Return audio stream
         API->>FS: Save audio file
-        API->>DB: Store sentence record (original + corrected + analysis)
-        API-->>Frontend: Return analysis + corrections + audio path
+        API->>DB: Store sentence record (original + corrected + analysis + structure)
+        API-->>Frontend: Return analysis + corrections + structure + audio path
     end
-    Frontend->>User: Display correction comparison + color-coded analysis + audio player
+    Frontend->>User: Display compact view: correction comparison + color-coded sentence + inline details + structure analysis
 ```
 
 ## Components and Interfaces
@@ -91,7 +122,7 @@ async function analyzeSentence(sentence: string): Promise<AnalysisResult>
 async function generateAudio(sentence: string): Promise<Buffer>
 ```
 
-- `analyzeSentence`: Uses OpenAI Chat Completions API with `response_format: { type: "json_schema" }` for structured output. Model: `gpt-4o-mini`. The single GPT call handles both grammar correction and multi-layer analysis — the prompt instructs the model to first correct the sentence, then analyze the corrected version.
+- `analyzeSentence`: Uses OpenAI Chat Completions API with `response_format: { type: "json_schema" }` for structured output. Model: `gpt-4o-mini`. The single GPT call handles grammar correction, multi-layer analysis, AND deep structure analysis — the prompt instructs the model to first correct the sentence, then analyze the corrected version including structural breakdown.
 - `generateAudio`: Uses OpenAI TTS API (`tts-1` model, `alloy` voice), returns MP3 audio Buffer. Audio is generated for the **corrected** sentence.
 
 #### 2. Database Layer (`lib/db.ts`)
@@ -104,24 +135,30 @@ function getAllSentences(): SentenceRecord[]
 function getSentenceById(id: number): SentenceRecord | undefined
 ```
 
-Uses `better-sqlite3` synchronous API. The `sentences` table is updated to include `corrected_sentence` column. Duplicate detection matches on the **original** sentence text.
+Uses `better-sqlite3` synchronous API. Duplicate detection matches on the **original** sentence text.
 
 #### 3. API Routes
 
 | Route | Method | Description | Request/Params | Response |
 |-------|--------|-------------|----------------|----------|
-| `/api/analyze` | POST | Correct + analyze sentence | `{ sentence: string }` | `{ id, sentence, correctedSentence, analysis, audioPath, createdAt }` |
+| `/api/analyze` | POST | Correct + analyze + structure | `{ sentence: string }` | `{ id, sentence, correctedSentence, analysis, audioPath, createdAt }` |
 | `/api/sentences` | GET | List all sentences | - | `SentenceRecord[]` |
 | `/api/sentences/[id]` | GET | Get sentence detail | URL param `id` | `SentenceRecord` |
 | `/api/audio/[filename]` | GET | Serve audio file | URL param `filename` | Audio stream (MP3) |
 
 ### Frontend Components
 
-#### 1. Page Layout (`app/page.tsx`)
+#### 1. Page Layout (`app/page.tsx`) (UPDATED)
 
-Single-page app with two sections:
-- Top: Sentence input area + analysis result display (correction comparison + color-coded sentence + detail view + audio)
+Single-page app with modern, minimalist design — clean typography, generous whitespace, subtle colors:
+- Top: Sentence input area
+- Middle: Analysis display section
+  - Correction comparison (if corrections exist)
+  - Sentence header: color-coded sentence + inline tag badge + audio player (all in one row area)
+  - Two-column analysis: left column (selected component detail, clauses, structure analysis, grammar notes, paraphrase) | right column (vocabulary cards)
 - Bottom: Sentence library list
+
+The two-column layout ensures sentence structure and vocabulary are visible simultaneously. On mobile, it collapses to a single column.
 
 #### 2. SentenceInput Component
 
@@ -130,25 +167,41 @@ Single-page app with two sections:
 - Loading state during submission
 - Error message display
 
-#### 3. CorrectionComparison Component (NEW)
+#### 3. CorrectionComparison Component (UPDATED)
 
-- Displays side-by-side comparison of original vs. corrected sentence
+- Displays **only** a whole-sentence side-by-side comparison of original vs. corrected sentence
 - Only rendered when corrections exist (corrections array is non-empty)
-- Highlights the specific changes made
-- Shows each correction with original text, corrected text, and reason
+- Highlights the specific differences between original and corrected
+- **No individual correction cards** — removed to keep the display compact
 
-#### 4. ColorCodedSentence Component (UPDATED)
+#### 4. ColorCodedSentence Component (UPDATED — Index-Based Rendering)
 
-- Renders the **corrected** sentence with color-coded grammar components, each clickable
-- Difficult vocabulary words receive an additional visual indicator (underline + subtle background highlight) to make them stand out from regular grammar coloring
-- The component receives a list of difficult words from the vocabulary analysis to apply the extra highlighting
+- Accepts a new `correctedSentence` string prop in addition to `components`
+- Renders the sentence by iterating through the `correctedSentence` using `startIndex`/`endIndex` from each GrammarComponent to slice and color-code spans
+- Fills gaps between components (characters not covered by any component) with unstyled text
+- Does NOT concatenate `comp.text` fields — this was the source of a text duplication bug when GPT returned overlapping components
+- Difficult vocabulary words receive an additional visual indicator (underline + subtle background highlight)
+- Clicking a component shows its details inline below (not in a separate panel)
 
-#### 5. DetailView Component (UPDATED)
+**Bug Fix Detail**: The previous implementation concatenated `comp.text` from each GrammarComponent with spaces between them. When GPT returned components where text overlapped (e.g., "now" appearing in both an adverbial component and the next component), the text got duplicated. The fix reconstructs the display from the `correctedSentence` string using character indices, ensuring the rendered text always matches the original corrected sentence exactly.
 
-- No longer displays sentence type
-- Vocabulary section shows expanded cards with: IPA pronunciation, part of speech, detailed definition, usage note, and difficulty reason
-- Shows clause breakdown, grammar notes, and paraphrase
-- Selected component detail panel
+#### 5. DetailView Component (UPDATED — Two-Column Layout)
+
+- Uses a responsive two-column layout on desktop: left column for sentence structure (selected component detail, clauses, structure analysis, grammar notes, paraphrase), right column for vocabulary cards
+- On narrow viewports (< 768px), stacks vertically: structure on top, vocabulary below
+- When a grammar component is clicked, shows its details in a small inline highlighted block in the left column
+- Vocabulary section uses compact card format — each card shows word, pronunciation badge, part of speech, concise definition, example sentence (italic), and difficulty reason
+- All sections are compact to fit within one viewport
+- Selected component detail shown as a small highlighted inline block
+
+#### 5a. InlineTagBadge Component (NEW)
+
+- Displays the context tag as a small inline chip/badge next to the sentence text (inside the sentence header area, not as a separate section)
+- When a tag exists: shows a small colored badge like `🏷 Game: Arknights` with a click handler to open the tag editor popover
+- When no tag exists: shows a small `+ Tag` button that opens the tag editor popover
+- The tag editor popover is a compact floating panel with type/name inputs and existing tag selection
+- Uses a compact, unobtrusive visual style (small font, muted colors, rounded pill shape)
+- Replaces the current full-section SentenceTagEditor in the analysis display
 
 #### 6. AudioPlayer Component
 
@@ -164,27 +217,35 @@ Single-page app with two sections:
 
 ### Multi-Layer Sentence Analysis Approach
 
-The analysis uses a carefully designed multi-layer approach. The GPT call handles both correction and analysis in a single request:
+The analysis uses a carefully designed multi-layer approach. The GPT call handles correction, analysis, AND deep structure in a single request:
 
 **Step 0 — Grammar Correction**: Check the input sentence for spelling and grammar errors. Produce a minimally corrected version — fix only errors, do not change word choices or sentence structure. List each correction with original text, corrected text, and reason.
 
 **Layer 1 — Clause Level**: Break the corrected sentence into its constituent clauses (main clause, subordinate clauses). Identify each clause's type and role.
 
-**Layer 2 — Phrase/Chunk Level**: Within each clause, identify the functional chunks: subject phrase, verb phrase, object phrase, adverbial phrases, prepositional phrases, etc. Each chunk is mapped to its position in the **corrected** sentence via character offsets. This is the primary level for color-coded display.
+**Layer 2 — Phrase/Chunk Level**: Within each clause, identify the functional chunks: subject phrase, verb phrase, object phrase, adverbial phrases, prepositional phrases, etc. Each chunk is mapped to its position in the **corrected** sentence via character offsets.
 
-**Layer 3 — Word Level (Key Vocabulary)**: Extract words that are difficult, uncommon, or complex — focusing on B2+ level, academic words, and words commonly confused by TOEFL-level learners. For each word, provide:
+**Layer 3 — Word Level (Key Vocabulary — CET-4+ focus)**: Extract words that are above CET-4 level (~3500 common words) — academic words, uncommon words, and words commonly confused by English learners. For each word, provide:
 - IPA phonetic transcription
 - Part of speech
-- A detailed, multi-sentence definition (not just a one-liner)
+- A detailed, multi-sentence definition
 - A contextual usage note explaining how the word functions in this specific sentence
-- A difficulty reason explaining why this word is hard or important for English learners
+- A difficulty reason explaining why this word is hard or important
 
-### GPT Prompt Design
+**Layer 4 — Deep Structure Analysis (NEW)**: Provide an accessible breakdown of how the sentence is constructed:
+- Clause connections: How clauses relate to each other (coordination, subordination) and why
+- Tense logic: Why specific tenses are chosen, explained in simple terms
+- Phrase/idiom usage: Identify and explain any phrases, idioms, or fixed collocations
+- Written in simple, accessible language suitable for CET-4 level learners
 
-The system prompt is engineered to produce correction + consistent, linguistically accurate analysis in a single call:
+### GPT Prompt Design (UPDATED)
+
+The system prompt is engineered to produce correction + analysis + deep structure in a single call:
 
 ```
-You are an expert English linguist and language teacher helping a TOEFL-level English learner (score ~80) who is weak at pronunciation, listening, and complex/hard words.
+You are an expert English linguist and language teacher helping an English learner at CET-4 vocabulary level (~3500 words, roughly CEFR A2-B1, TOEFL score ~80). The learner is weak at pronunciation, listening, and complex/hard words. They want to deeply understand how English sentences are constructed.
+
+All output must be in English.
 
 Step 0 — Grammar & Spelling Correction:
 - Check the input sentence for spelling and grammar errors.
@@ -205,15 +266,22 @@ Layer 2 — Phrase-Level Chunking:
   - The grammatical function (e.g., "subject", "main verb", "direct object", "adverbial of time")
   - A brief explanation of its role in the sentence
 
-Layer 3 — Key Vocabulary (focus on DIFFICULT words):
-- Select words that are difficult, uncommon, or complex: B2+ level, academic words, words commonly confused by TOEFL-level learners.
+Layer 3 — Key Vocabulary (focus on words ABOVE CET-4 level):
+- Select words that are above CET-4 level (~3500 common English words). Include academic words, uncommon words, and words commonly confused by English learners.
 - For each word, provide:
   - The word form as it appears
   - IPA phonetic transcription
   - Part of speech
-  - A DETAILED definition (2-3 sentences, not just a one-liner)
+  - A CONCISE definition (one clear sentence — not a multi-sentence explanation)
   - A usage note explaining how the word functions in this specific sentence
   - A difficulty reason explaining why this word is hard or important for English learners
+  - One example sentence that best demonstrates the word's meaning, simple enough for CET-4 level learners
+
+Layer 4 — Deep Structure Analysis:
+Provide an accessible breakdown of how this sentence is constructed. Write in simple, clear language that a CET-4 level learner can understand.
+- clauseConnections: Explain how the clauses in this sentence connect to each other. What type of connection is it (coordination with "and/but/or", subordination with "because/although/when/that", etc.)? Why does the author connect them this way? What logical relationship does it express?
+- tenseLogic: Explain the tense(s) used in this sentence. Why is this tense chosen? What would change if a different tense were used? Keep the explanation simple and practical.
+- phraseExplanations: Identify any notable phrases, idioms, fixed collocations, or phrasal verbs. Explain what they mean and how they work in this sentence.
 
 Also provide:
 - A list of grammar points worth noting (tenses, voice, mood, notable constructions)
@@ -226,13 +294,23 @@ Uses OpenAI Structured Outputs (`response_format: { type: "json_schema" }`) to e
 
 ## Data Models
 
-### Correction Type (NEW)
+### Correction Type
 
 ```typescript
 interface Correction {
   original: string;      // The original text that was wrong
   corrected: string;     // The corrected text
   reason: string;        // Brief reason for the correction
+}
+```
+
+### StructureAnalysis Type (NEW)
+
+```typescript
+interface StructureAnalysis {
+  clauseConnections: string;   // How clauses connect and why
+  tenseLogic: string;          // Tense choices and reasoning
+  phraseExplanations: string;  // Phrases, idioms, collocations explained
 }
 ```
 
@@ -257,51 +335,54 @@ interface VocabularyItem {
   word: string;
   phonetic: string;          // IPA phonetic transcription
   partOfSpeech: string;
-  definition: string;        // Detailed multi-sentence definition
+  definition: string;        // Concise one-sentence definition
   usageNote: string;         // Contextual usage in this sentence
-  difficultyReason: string;  // NEW: Why this word is hard/important
+  difficultyReason: string;  // Why this word is hard/important
+  exampleSentence: string;   // One example sentence demonstrating the word's meaning
 }
 
 interface AnalysisResult {
-  // sentenceType REMOVED
-  originalSentence: string;      // NEW: The user's original input
-  correctedSentence: string;     // NEW: The corrected version
-  corrections: Correction[];     // NEW: List of corrections made
+  originalSentence: string;
+  correctedSentence: string;
+  corrections: Correction[];
   clauses: Clause[];
   components: GrammarComponent[];    // Indices relative to correctedSentence
   vocabulary: VocabularyItem[];
+  structureAnalysis: StructureAnalysis;  // NEW: Deep structure breakdown
   grammarNotes: string[];
   paraphrase: string;
 }
 ```
 
-### SentenceRecord Type (UPDATED)
+### SentenceRecord Type
 
 ```typescript
 interface SentenceRecord {
   id: number;
   sentence: string;                  // Original English sentence (user input)
-  correctedSentence: string;         // NEW: Corrected version
+  correctedSentence: string;         // Corrected version
   analysis: AnalysisResult;          // Analysis result (stored as JSON)
   audioFilename: string | null;      // Audio filename (null if TTS failed)
+  tag?: SentenceTag | null;          // Optional context tag
   createdAt: string;                 // ISO 8601 timestamp
 }
 ```
 
-### SQLite Table Schema (UPDATED)
+### SQLite Table Schema
 
 ```sql
 CREATE TABLE IF NOT EXISTS sentences (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   sentence TEXT NOT NULL UNIQUE,
-  corrected_sentence TEXT NOT NULL,       -- NEW column
-  analysis TEXT NOT NULL,
+  corrected_sentence TEXT NOT NULL,
+  analysis TEXT NOT NULL,              -- JSON includes structureAnalysis
   audio_filename TEXT,
+  tag TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
 
-Migration for existing data: Add `corrected_sentence` column with default equal to `sentence` value.
+No schema migration needed — the `analysis` column stores JSON, and the new `structureAnalysis` field is added to the JSON structure. Existing records without `structureAnalysis` will be handled gracefully in the frontend.
 
 ### Audio File Storage
 
@@ -309,7 +390,7 @@ Migration for existing data: Add `corrected_sentence` column with default equal 
 - Naming: SHA-256 hash of **corrected** sentence content (first 16 hex chars) + `.mp3`
 - Example: `a1b2c3d4e5f6g7h8.mp3`
 
-### Color Mapping (UPDATED)
+### Color Mapping
 
 | Grammar Role | Color | Label |
 |-------------|-------|-------|
@@ -323,19 +404,18 @@ Migration for existing data: Add `corrected_sentence` column with default equal 
 | conjunction | Gray (#6B7280) | Conjunction |
 | other | Slate (#64748B) | Other |
 
-Difficult vocabulary words additionally receive: a dashed underline and a subtle yellow background highlight (`#FEF9C3`) overlaid on their grammar color, making them visually distinct.
-
+Difficult vocabulary words additionally receive: a dashed underline and a subtle yellow background highlight (`#FEF9C3`) overlaid on their grammar color.
 
 
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-### Property 1: AnalysisResult Structural Completeness
+### Property 1: AnalysisResult Structural Completeness (UPDATED)
 
-*For any* valid English sentence submitted to the analyzer, the returned AnalysisResult must contain: `originalSentence` (non-empty string), `correctedSentence` (non-empty string), `corrections` (array where each item has `original`, `corrected`, and `reason` strings), a non-empty `clauses` array where each clause has `text`, `type`, and `role`, a non-empty `components` array where each component has `text`, `role`, `startIndex`, `endIndex`, and `description`, a `vocabulary` array where each item has `word`, `phonetic`, `partOfSpeech`, `definition`, `usageNote`, and `difficultyReason` fields, a non-empty `grammarNotes` array, and a non-empty `paraphrase` string.
+*For any* valid English sentence submitted to the analyzer, the returned AnalysisResult must contain: `originalSentence` (non-empty string), `correctedSentence` (non-empty string), `corrections` (array where each item has `original`, `corrected`, and `reason` strings), a non-empty `clauses` array where each clause has `text`, `type`, and `role`, a non-empty `components` array where each component has `text`, `role`, `startIndex`, `endIndex`, and `description`, a `vocabulary` array where each item has `word`, `phonetic`, `partOfSpeech`, `definition`, `usageNote`, `difficultyReason`, and `exampleSentence` fields (all non-empty strings), a `structureAnalysis` object with non-empty `clauseConnections`, `tenseLogic`, and `phraseExplanations` strings, a non-empty `grammarNotes` array, and a non-empty `paraphrase` string.
 
-**Validates: Requirements 2.3, 3.1, 3.2, 4.2**
+**Validates: Requirements 2.3, 3.1, 3.2, 4.2, 7.1, 7.2, 7.3, 14.1**
 
 ### Property 2: Whitespace Input Rejection
 
@@ -363,33 +443,33 @@ Difficult vocabulary words additionally receive: a dashed underline and a subtle
 
 ### Property 6: Sentence Record Round-Trip with Corrections
 
-*For any* SentenceRecord successfully created via POST /api/analyze, fetching it by its id via GET /api/sentences/[id] should return a record with identical `sentence`, `correctedSentence`, `analysis`, and `audioFilename` fields.
+*For any* SentenceRecord successfully created via POST /api/analyze, fetching it by its id via GET /api/sentences/[id] should return a record with identical `sentence`, `correctedSentence`, `analysis` (including `structureAnalysis`), and `audioFilename` fields.
 
-**Validates: Requirements 2.6, 7.1**
+**Validates: Requirements 2.6, 8.1**
 
 ### Property 7: Sentence Submission Idempotence
 
 *For any* English sentence, submitting the same sentence twice should return the same Analysis_Result, correctedSentence, and audioFilename on both submissions, and the Sentence_Library should contain exactly one record for that sentence.
 
-**Validates: Requirements 7.3**
+**Validates: Requirements 8.3**
 
 ### Property 8: Sentence List Chronological Order
 
 *For any* Sentence_Library containing multiple records, GET /api/sentences should return a list where each record's `createdAt` timestamp is greater than or equal to the next record's `createdAt` (reverse chronological order).
 
-**Validates: Requirements 7.2**
+**Validates: Requirements 8.2**
 
 ### Property 9: API Error Response Format
 
 *For any* invalid request sent to any API endpoint (missing required fields, invalid ID, non-existent resource), the system should return an appropriate HTTP status code (400/404/500) and a structured JSON response containing an `error` field.
 
-**Validates: Requirements 9.5**
+**Validates: Requirements 10.5**
 
-### Property 10: DetailView Display Completeness
+### Property 10: DetailView Display Completeness (UPDATED)
 
-*For any* valid AnalysisResult, the DetailView rendered output should contain: each VocabularyItem's word, phonetic transcription, part of speech, definition, usage note, and difficulty reason; the clause breakdown; grammar notes; and the paraphrase text.
+*For any* valid AnalysisResult, the DetailView rendered output should contain: each VocabularyItem's word, phonetic transcription, part of speech, definition, example sentence, usage note, and difficulty reason; the clause breakdown; the structureAnalysis (clause connections, tense logic, phrase explanations); grammar notes; and the paraphrase text.
 
-**Validates: Requirements 4.4, 6.3, 6.4**
+**Validates: Requirements 4.4, 6.3, 6.4, 7.5, 14.4**
 
 ### Property 11: Difficult Word Visual Highlighting
 
@@ -397,17 +477,29 @@ Difficult vocabulary words additionally receive: a dashed underline and a subtle
 
 **Validates: Requirements 4.3**
 
-### Property 12: Correction Comparison Display
+### Property 12: Whole-Sentence Correction Display
 
-*For any* AnalysisResult with a non-empty corrections array, the CorrectionComparison component should render both the original sentence and the corrected sentence, and display each correction's original text, corrected text, and reason.
+*For any* AnalysisResult with a non-empty corrections array, the CorrectionComparison component should render both the original sentence and the corrected sentence side-by-side, and should NOT render any individual correction cards.
 
 **Validates: Requirements 6.6**
 
 ### Property 13: Audio Filename Based on Corrected Sentence
 
-*For any* sentence where correction occurs, the audio filename should be derived from the SHA-256 hash of the corrected sentence (not the original), ensuring audio matches the corrected pronunciation.
+*For any* sentence where correction occurs, the audio filename should be derived from the SHA-256 hash of the corrected sentence (not the original), ensuring audio matches the corrected pronunciation. Generating audio for the same corrected sentence twice should return the same filename.
 
 **Validates: Requirements 5.1, 5.3**
+
+### Property 14: Color-Coded Component Rendering
+
+*For any* set of GrammarComponents with known roles, the ColorCodedSentence component should render each component with the correct color corresponding to its grammatical role from the color mapping table.
+
+**Validates: Requirements 6.1**
+
+### Property 15: ColorCodedSentence Rendering Round-Trip
+
+*For any* valid correctedSentence string and array of GrammarComponents with valid startIndex/endIndex values, the text content rendered by the ColorCodedSentence component (concatenating all styled and unstyled spans) should equal the full correctedSentence string exactly, with no duplicated or missing characters.
+
+**Validates: Requirements 12.1, 12.2, 12.3, 12.4**
 
 ## Error Handling
 
@@ -461,7 +553,7 @@ test.prop([validAnalysisResultArb], (result) => {
 ```
 
 Property test coverage:
-- **Property 1**: AnalysisResult structural completeness
+- **Property 1**: AnalysisResult structural completeness (including structureAnalysis and exampleSentence)
 - **Property 2**: Whitespace input rejection
 - **Property 4**: Grammar component indices valid relative to corrected sentence
 - **Property 5**: Correction consistency
@@ -469,10 +561,12 @@ Property test coverage:
 - **Property 7**: Sentence submission idempotence
 - **Property 8**: Sentence list chronological order
 - **Property 9**: API error response format
-- **Property 10**: DetailView display completeness
+- **Property 10**: DetailView display completeness (including structure analysis and exampleSentence)
 - **Property 11**: Difficult word visual highlighting
-- **Property 12**: Correction comparison display
+- **Property 12**: Whole-sentence correction display (no individual cards)
 - **Property 13**: Audio filename based on corrected sentence
+- **Property 14**: Color-coded component rendering
+- **Property 15**: ColorCodedSentence rendering round-trip (no text duplication)
 
 ### Unit Tests
 
@@ -483,8 +577,13 @@ Unit tests cover specific examples and edge cases:
 - **Database operations**: CRUD, duplicate sentence handling, corrected_sentence storage
 - **Audio files**: Hash-based naming using corrected sentence, file read/write
 - **Error scenarios**: API failure, JSON parse failure, file not found
-- **Frontend components**: Color mapping, vocabulary card rendering, correction comparison, empty state, loading state
-- **Correction display**: Side-by-side comparison rendering, empty corrections case
+- **Frontend components**: Color mapping, vocabulary display (with example sentences), correction comparison (whole-sentence only), empty state, loading state
+- **Structure analysis display**: Clause connections, tense logic, phrase explanations rendering
+- **Compact layout**: Inline detail display on component click
+- **ColorCodedSentence bug fix**: Verify no text duplication with overlapping components, gap filling between components
+- **Inline tag badge**: Tag badge rendering, click-to-edit popover, add tag button when no tag
+- **Two-column layout**: Desktop two-column rendering, mobile stacked rendering
+- **Vocabulary cards**: Compact card format with example sentence display
 
 ### Test Directory Structure
 

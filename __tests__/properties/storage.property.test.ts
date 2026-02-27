@@ -59,12 +59,18 @@ const analysisArb: fc.Arbitrary<AnalysisResult> = fc.record({
       definition: fc.string({ minLength: 1, maxLength: 100 }),
       usageNote: fc.string({ minLength: 1, maxLength: 100 }),
       difficultyReason: fc.string({ minLength: 1, maxLength: 100 }),
+      exampleSentence: fc.string({ minLength: 1, maxLength: 100 }),
     }),
     { minLength: 0, maxLength: 5 }
   ),
   grammarNotes: fc.array(fc.string({ minLength: 1, maxLength: 100 }), {
     minLength: 1,
     maxLength: 5,
+  }),
+  structureAnalysis: fc.record({
+    clauseConnections: fc.string({ minLength: 1, maxLength: 200 }),
+    tenseLogic: fc.string({ minLength: 1, maxLength: 200 }),
+    phraseExplanations: fc.string({ minLength: 1, maxLength: 200 }),
   }),
   paraphrase: fc.string({ minLength: 1, maxLength: 200 }),
 });

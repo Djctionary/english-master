@@ -26,7 +26,6 @@ const headingStyle: React.CSSProperties = {
 const comparisonRowStyle: React.CSSProperties = {
   display: "flex",
   gap: "16px",
-  marginBottom: "16px",
 };
 
 const sentenceBoxStyle: React.CSSProperties = {
@@ -43,26 +42,6 @@ const labelStyle: React.CSSProperties = {
   textTransform: "uppercase" as const,
   letterSpacing: "0.05em",
   marginBottom: "6px",
-};
-
-const correctionCardStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  backgroundColor: "#FFFFFF",
-  borderRadius: "6px",
-  border: "1px solid #E5E7EB",
-  marginBottom: "8px",
-};
-
-const arrowStyle: React.CSSProperties = {
-  margin: "0 8px",
-  color: "#6B7280",
-};
-
-const reasonStyle: React.CSSProperties = {
-  fontSize: "13px",
-  color: "#6B7280",
-  marginTop: "4px",
-  fontStyle: "italic",
 };
 
 /**
@@ -179,29 +158,6 @@ export default function CorrectionComparison({
           <div style={{ ...labelStyle, color: "#166534" }}>Corrected</div>
           <div>{highlightCorrected(correctedSentence, corrections)}</div>
         </div>
-      </div>
-
-      {/* Individual correction cards */}
-      <div>
-        {corrections.map((correction, i) => (
-          <div key={i} style={correctionCardStyle} data-testid="correction-card">
-            <div style={{ fontSize: "14px" }}>
-              <span
-                style={{
-                  color: "#DC2626",
-                  textDecoration: "line-through",
-                }}
-              >
-                {correction.original}
-              </span>
-              <span style={arrowStyle}>→</span>
-              <span style={{ color: "#16A34A", fontWeight: 600 }}>
-                {correction.corrected}
-              </span>
-            </div>
-            <div style={reasonStyle}>{correction.reason}</div>
-          </div>
-        ))}
       </div>
     </div>
   );

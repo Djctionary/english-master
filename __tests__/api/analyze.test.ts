@@ -27,8 +27,13 @@ function makeAnalysis(overrides?: Partial<AnalysisResult>): AnalysisResult {
       { text: "sat", role: "predicate", startIndex: 8, endIndex: 11, description: "Predicate" },
     ],
     vocabulary: [
-      { word: "cat", phonetic: "/kæt/", partOfSpeech: "noun", definition: "A feline", usageNote: "Subject", difficultyReason: "Common word but important for basic vocabulary" },
+      { word: "cat", phonetic: "/kæt/", partOfSpeech: "noun", definition: "A feline", usageNote: "Subject", difficultyReason: "Common word but important for basic vocabulary", exampleSentence: "The cat sat on the windowsill." },
     ],
+    structureAnalysis: {
+      clauseConnections: "This is a simple sentence with one independent clause.",
+      tenseLogic: "Simple past tense is used to describe a completed action.",
+      phraseExplanations: "No notable phrases or idioms in this sentence.",
+    },
     grammarNotes: ["Simple past tense"],
     paraphrase: "A cat was sitting.",
     ...overrides,

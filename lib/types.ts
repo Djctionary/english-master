@@ -57,6 +57,21 @@ export interface VocabularyItem {
   usageNote: string;
   /** Why this word is hard or important for English learners */
   difficultyReason: string;
+  /** One example sentence demonstrating the word's meaning */
+  exampleSentence: string;
+}
+
+/**
+ * Deep sentence structure analysis (Layer 4 — Deep Structure Analysis).
+ * Written in accessible language for CET-4 level learners.
+ */
+export interface StructureAnalysis {
+  /** How clauses connect and why (coordination, subordination, logical relationships) */
+  clauseConnections: string;
+  /** Tense choices and reasoning — why this tense, what would change with another */
+  tenseLogic: string;
+  /** Phrases, idioms, fixed collocations explained */
+  phraseExplanations: string;
 }
 
 /**
@@ -75,6 +90,8 @@ export interface AnalysisResult {
   components: GrammarComponent[];
   /** Key vocabulary items */
   vocabulary: VocabularyItem[];
+  /** Deep structure analysis breakdown */
+  structureAnalysis: StructureAnalysis;
   /** Notable grammar points */
   grammarNotes: string[];
   /** Overall meaning paraphrase */
@@ -240,6 +257,11 @@ export const analysisResultSchema = {
               description:
                 "Why this word is hard or important for English learners",
             },
+            exampleSentence: {
+              type: "string" as const,
+              description:
+                "One example sentence demonstrating the word's meaning",
+            },
           },
           required: [
             "word",
@@ -248,9 +270,30 @@ export const analysisResultSchema = {
             "definition",
             "usageNote",
             "difficultyReason",
+            "exampleSentence",
           ],
           additionalProperties: false,
         },
+      },
+      structureAnalysis: {
+        type: "object" as const,
+        description: "Deep sentence structure analysis for CET-4 level learners",
+        properties: {
+          clauseConnections: {
+            type: "string" as const,
+            description: "How clauses connect and why (coordination, subordination, logical relationships)",
+          },
+          tenseLogic: {
+            type: "string" as const,
+            description: "Tense choices and reasoning — why this tense is used",
+          },
+          phraseExplanations: {
+            type: "string" as const,
+            description: "Phrases, idioms, fixed collocations explained",
+          },
+        },
+        required: ["clauseConnections", "tenseLogic", "phraseExplanations"],
+        additionalProperties: false,
       },
       grammarNotes: {
         type: "array" as const,
@@ -273,6 +316,7 @@ export const analysisResultSchema = {
       "clauses",
       "components",
       "vocabulary",
+      "structureAnalysis",
       "grammarNotes",
       "paraphrase",
     ],

@@ -13,7 +13,9 @@ const openai = new OpenAI({
   timeout: 60_000, // 60 seconds
 });
 
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert English linguist and language teacher helping a TOEFL-level English learner (score ~80) who is weak at pronunciation, listening, and complex/hard words.
+const ANALYSIS_SYSTEM_PROMPT = `You are an expert English linguist and language teacher helping an English learner at CET-4 vocabulary level (~3500 words, roughly CEFR A2-B1, TOEFL score ~80). The learner is weak at pronunciation, listening, and complex/hard words. They want to deeply understand how English sentences are constructed.
+
+All output must be in English.
 
 Step 0 — Grammar & Spelling Correction:
 - Check the input sentence for spelling and grammar errors.
@@ -34,15 +36,22 @@ Layer 2 — Phrase-Level Chunking:
   - The grammatical function (e.g., "subject", "main verb", "direct object", "adverbial of time")
   - A brief explanation of its role in the sentence
 
-Layer 3 — Key Vocabulary (focus on DIFFICULT words):
-- Select words that are difficult, uncommon, or complex: B2+ level, academic words, words commonly confused by TOEFL-level learners.
+Layer 3 — Key Vocabulary (focus on words ABOVE CET-4 level):
+- Select words that are above CET-4 level (~3500 common English words). Include academic words, uncommon words, and words commonly confused by English learners.
 - For each word, provide:
   - The word form as it appears
   - IPA phonetic transcription
   - Part of speech
-  - A DETAILED definition (2-3 sentences, not just a one-liner)
+  - A CONCISE definition (one clear sentence — not a multi-sentence explanation)
   - A usage note explaining how the word functions in this specific sentence
   - A difficulty reason explaining why this word is hard or important for English learners
+  - One example sentence that best demonstrates the word's meaning, simple enough for CET-4 level learners
+
+Layer 4 — Deep Structure Analysis:
+Provide an accessible breakdown of how this sentence is constructed. Write in simple, clear language that a CET-4 level learner can understand.
+- clauseConnections: Explain how the clauses in this sentence connect to each other. What type of connection is it (coordination with "and/but/or", subordination with "because/although/when/that", etc.)? Why does the author connect them this way? What logical relationship does it express?
+- tenseLogic: Explain the tense(s) used in this sentence. Why is this tense chosen? What would change if a different tense were used? Keep the explanation simple and practical.
+- phraseExplanations: Identify any notable phrases, idioms, fixed collocations, or phrasal verbs. Explain what they mean and how they work in this sentence.
 
 Also provide:
 - A list of grammar points worth noting (tenses, voice, mood, notable constructions)
@@ -106,7 +115,12 @@ export async function analyzeSentence(
     !Array.isArray(parsed.vocabulary) ||
     !Array.isArray(parsed.grammarNotes) ||
     parsed.grammarNotes.length === 0 ||
-    !parsed.paraphrase
+    !parsed.paraphrase ||
+    !parsed.structureAnalysis ||
+    !parsed.structureAnalysis.clauseConnections ||
+    !parsed.structureAnalysis.tenseLogic ||
+    !parsed.structureAnalysis.phraseExplanations ||
+    parsed.vocabulary.some((v) => !v.exampleSentence)
   ) {
     throw new Error("Analysis result parsing failed, please retry");
   }

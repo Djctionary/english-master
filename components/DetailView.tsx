@@ -1,158 +1,269 @@
 "use client";
 
-import { AnalysisResult, GrammarComponent } from "@/lib/types";
+import { AnalysisResult, GrammarComponent, StructureAnalysis } from "@/lib/types";
 
 export interface DetailViewProps {
   analysis: AnalysisResult;
   selectedComponent?: GrammarComponent | null;
 }
 
-const sectionStyle: React.CSSProperties = {
-  marginBottom: "20px",
-};
+export default function DetailView({
+  analysis,
+  selectedComponent,
+}: DetailViewProps) {
+  const structureAnalysis: StructureAnalysis | undefined = analysis.structureAnalysis;
 
-const headingStyle: React.CSSProperties = {
-  fontSize: "16px",
+  return (
+    <div
+      style={{ padding: "8px 12px", fontSize: "13px", color: "#374151" }}
+      aria-label="Analysis details"
+    >
+      {/* Two-column responsive layout */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
+        {/* Left column: structure analysis */}
+        <div
+          style={{
+            flex: "1 1 55%",
+            minWidth: "300px",
+          }}
+        >
+          {/* Selected Component — small inline highlighted block */}
+          {selectedComponent && (
+            <div
+              data-testid="selected-component"
+              style={{
+                display: "inline-block",
+                padding: "4px 10px",
+                marginBottom: "8px",
+                backgroundColor: "#EEF2FF",
+                border: "1px solid #C7D2FE",
+                borderRadius: "4px",
+                fontSize: "12px",
+                lineHeight: 1.4,
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>{selectedComponent.text}</span>
+              <span style={{ color: "#6B7280", margin: "0 4px" }}>·</span>
+              <span style={{ color: "#4F46E5" }}>{selectedComponent.role}</span>
+              <span style={{ color: "#6B7280", margin: "0 4px" }}>—</span>
+              <span>{selectedComponent.description}</span>
+            </div>
+          )}
+
+          {/* Clauses — compact list */}
+          {analysis.clauses.length > 0 && (
+            <div style={{ marginBottom: "6px" }}>
+              <h3 style={compactHeading}>Clauses</h3>
+              <ul style={compactList}>
+                {analysis.clauses.map((clause, i) => (
+                  <li key={i} style={compactRow}>
+                    <span style={{ fontWeight: 500 }}>{clause.text}</span>
+                    <span style={dimText}> — {clause.type}, {clause.role}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Structure Analysis */}
+          {structureAnalysis && (
+            <div style={{ marginBottom: "6px" }} data-testid="structure-analysis">
+              <h3 style={compactHeading}>Structure Analysis</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {structureAnalysis.clauseConnections && (
+                  <div style={structureRow}>
+                    <span style={structureLabel}>Clause Connections</span>
+                    <span>{structureAnalysis.clauseConnections}</span>
+                  </div>
+                )}
+                {structureAnalysis.tenseLogic && (
+                  <div style={structureRow}>
+                    <span style={structureLabel}>Tense Logic</span>
+                    <span>{structureAnalysis.tenseLogic}</span>
+                  </div>
+                )}
+                {structureAnalysis.phraseExplanations && (
+                  <div style={structureRow}>
+                    <span style={structureLabel}>Phrase Explanations</span>
+                    <span>{structureAnalysis.phraseExplanations}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Grammar Notes — compact */}
+          {analysis.grammarNotes.length > 0 && (
+            <div style={{ marginBottom: "6px" }}>
+              <h3 style={compactHeading}>Grammar Notes</h3>
+              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px" }}>
+                {analysis.grammarNotes.map((note, i) => (
+                  <li key={i} style={{ marginBottom: "2px" }}>{note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Paraphrase — compact */}
+          <div style={{ marginBottom: "4px" }}>
+            <h3 style={compactHeading}>Paraphrase</h3>
+            <p style={{ margin: 0, fontStyle: "italic", fontSize: "12px" }}>
+              {analysis.paraphrase}
+            </p>
+          </div>
+        </div>
+
+        {/* Right column: vocabulary cards */}
+        {analysis.vocabulary.length > 0 && (
+          <div
+            style={{
+              flex: "1 1 40%",
+              minWidth: "300px",
+            }}
+          >
+            <h3 style={compactHeading}>Vocabulary</h3>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+              aria-label="Vocabulary list"
+              role="list"
+            >
+              {analysis.vocabulary.map((item, i) => (
+                <div
+                  key={i}
+                  role="listitem"
+                  style={vocabCard}
+                >
+                  {/* Word + phonetic + POS */}
+                  <div style={{ marginBottom: "4px" }}>
+                    <span style={vocabWord}>{item.word}</span>
+                    <span style={vocabPhonetic}>{item.phonetic}</span>
+                    <span style={vocabPosBadge}>{item.partOfSpeech}</span>
+                  </div>
+
+                  {/* Concise definition */}
+                  <div style={{ fontSize: "12px", lineHeight: 1.5, color: "#374151" }}>
+                    {item.definition}
+                  </div>
+
+                  {/* Example sentence */}
+                  {item.exampleSentence && (
+                    <div style={vocabExample}>
+                      {item.exampleSentence}
+                    </div>
+                  )}
+
+                  {/* Difficulty reason */}
+                  {item.difficultyReason && (
+                    <div style={vocabDifficulty}>
+                      ⚡ {item.difficultyReason}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---- Compact style constants ---- */
+
+const compactHeading: React.CSSProperties = {
+  fontSize: "12px",
   fontWeight: 600,
-  marginBottom: "8px",
+  marginBottom: "3px",
+  marginTop: 0,
   color: "#1F2937",
   borderBottom: "1px solid #E5E7EB",
-  paddingBottom: "4px",
+  paddingBottom: "2px",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
 };
 
-const listStyle: React.CSSProperties = {
+const compactList: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
   margin: 0,
 };
 
-const listItemStyle: React.CSSProperties = {
-  padding: "8px 0",
+const compactRow: React.CSSProperties = {
+  padding: "2px 0",
   borderBottom: "1px solid #F3F4F6",
-};
-
-const labelStyle: React.CSSProperties = {
   fontSize: "12px",
+};
+
+const dimText: React.CSSProperties = {
   color: "#6B7280",
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.05em",
+  fontSize: "12px",
 };
 
-const valueStyle: React.CSSProperties = {
-  fontSize: "14px",
-  color: "#374151",
+const structureRow: React.CSSProperties = {
+  padding: "3px 6px",
+  backgroundColor: "#F9FAFB",
+  borderRadius: "3px",
+  fontSize: "12px",
+  lineHeight: 1.4,
 };
 
-export default function DetailView({
-  analysis,
-  selectedComponent,
-}: DetailViewProps) {
-  return (
-    <div
-      style={{ padding: "16px", fontSize: "14px", color: "#374151" }}
-      aria-label="Analysis details"
-    >
-      {/* Selected Component Details */}
-      {selectedComponent && (
-        <div style={sectionStyle} data-testid="selected-component">
-          <h3 style={headingStyle}>Selected Component</h3>
-          <div style={{ padding: "12px", backgroundColor: "#F9FAFB", borderRadius: "6px" }}>
-            <div style={{ marginBottom: "6px" }}>
-              <span style={labelStyle}>Text: </span>
-              <span style={{ ...valueStyle, fontWeight: 600 }}>{selectedComponent.text}</span>
-            </div>
-            <div style={{ marginBottom: "6px" }}>
-              <span style={labelStyle}>Role: </span>
-              <span style={valueStyle}>{selectedComponent.role}</span>
-            </div>
-            <div>
-              <span style={labelStyle}>Description: </span>
-              <span style={valueStyle}>{selectedComponent.description}</span>
-            </div>
-          </div>
-        </div>
-      )}
+const structureLabel: React.CSSProperties = {
+  display: "block",
+  fontWeight: 600,
+  fontSize: "11px",
+  color: "#4F46E5",
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+  marginBottom: "1px",
+};
 
-      {/* Clause Breakdown */}
-      {analysis.clauses.length > 0 && (
-        <div style={sectionStyle}>
-          <h3 style={headingStyle}>Clauses</h3>
-          <ul style={listStyle}>
-            {analysis.clauses.map((clause, i) => (
-              <li key={i} style={listItemStyle}>
-                <div style={{ fontWeight: 500 }}>{clause.text}</div>
-                <div style={{ fontSize: "13px", color: "#6B7280" }}>
-                  <span>{clause.type}</span>
-                  <span style={{ margin: "0 6px" }}>·</span>
-                  <span>{clause.role}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+/* ---- Vocabulary card styles ---- */
 
-      {/* Vocabulary */}
-      {analysis.vocabulary.length > 0 && (
-        <div style={sectionStyle}>
-          <h3 style={headingStyle}>Vocabulary</h3>
-          <ul style={listStyle} aria-label="Vocabulary list">
-            {analysis.vocabulary.map((item, i) => (
-              <li key={i} style={{
-                padding: "12px",
-                marginBottom: "10px",
-                backgroundColor: "#F9FAFB",
-                borderRadius: "8px",
-                border: "1px solid #E5E7EB",
-              }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600, fontSize: "15px" }}>{item.word}</span>
-                  <span style={{ color: "#6B7280", fontSize: "13px" }}>{item.phonetic}</span>
-                  <span style={{
-                    fontSize: "12px",
-                    backgroundColor: "#E5E7EB",
-                    borderRadius: "4px",
-                    padding: "1px 6px",
-                    color: "#4B5563",
-                  }}>
-                    {item.partOfSpeech}
-                  </span>
-                </div>
-                <div style={{ ...valueStyle, marginTop: "6px" }}>{item.definition}</div>
-                <div style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px", fontStyle: "italic" }}>
-                  {item.usageNote}
-                </div>
-                {item.difficultyReason && (
-                  <div style={{ marginTop: "6px", fontSize: "13px", color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "4px", padding: "4px 8px" }}>
-                    <span style={{ fontWeight: 600 }}>Why it&#39;s important: </span>
-                    {item.difficultyReason}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+const vocabCard: React.CSSProperties = {
+  padding: "10px 12px",
+  backgroundColor: "#FAFAFA",
+  border: "1px solid #E5E7EB",
+  borderRadius: "6px",
+};
 
-      {/* Grammar Notes */}
-      {analysis.grammarNotes.length > 0 && (
-        <div style={sectionStyle}>
-          <h3 style={headingStyle}>Grammar Notes</h3>
-          <ul style={{ ...listStyle, paddingLeft: "16px", listStyle: "disc" }}>
-            {analysis.grammarNotes.map((note, i) => (
-              <li key={i} style={{ ...valueStyle, marginBottom: "4px" }}>{note}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+const vocabWord: React.CSSProperties = {
+  fontWeight: 700,
+  fontSize: "15px",
+  color: "#111827",
+  marginRight: "6px",
+};
 
-      {/* Paraphrase */}
-      <div style={sectionStyle}>
-        <h3 style={headingStyle}>Paraphrase</h3>
-        <p style={{ ...valueStyle, margin: 0, fontStyle: "italic" }}>
-          {analysis.paraphrase}
-        </p>
-      </div>
-    </div>
-  );
-}
+const vocabPhonetic: React.CSSProperties = {
+  fontSize: "11px",
+  color: "#9CA3AF",
+  marginRight: "6px",
+};
+
+const vocabPosBadge: React.CSSProperties = {
+  fontSize: "10px",
+  backgroundColor: "#E5E7EB",
+  borderRadius: "8px",
+  padding: "1px 6px",
+  color: "#4B5563",
+  fontWeight: 500,
+};
+
+const vocabExample: React.CSSProperties = {
+  fontSize: "12px",
+  fontStyle: "italic",
+  color: "#4B5563",
+  marginTop: "4px",
+  lineHeight: 1.4,
+};
+
+const vocabDifficulty: React.CSSProperties = {
+  fontSize: "11px",
+  color: "#B45309",
+  marginTop: "4px",
+};
