@@ -2,9 +2,9 @@
 
 ## Overview
 
-A full-stack single-page application built with Next.js (App Router) for deep English sentence learning. Users submit English sentences, and the system first auto-corrects spelling/grammar errors, then performs multi-layer linguistic analysis (clause structure, phrase-level chunking, CET-4+ vocabulary, deep structural analysis) via OpenAI GPT API and generates audio via OpenAI TTS API. Results are displayed compactly within one viewport: a color-coded sentence with clickable parts showing inline details, whole-sentence correction comparison, vocabulary explanations, and deep structure breakdowns. All analysis results and audio are persisted to SQLite and local filesystem, forming a chronological sentence library for review.
+A full-stack single-page application built with Next.js (App Router) for deep English sentence learning. Users submit English sentences, and the system first auto-corrects spelling/grammar errors, then performs multi-layer linguistic analysis (clause structure, phrase-level chunking, CET-6+ vocabulary, deep structural analysis) via OpenAI GPT API and generates audio via OpenAI TTS API. Results are displayed compactly within one viewport: a color-coded sentence with clickable parts showing inline details, whole-sentence correction comparison, vocabulary explanations, and deep structure breakdowns. All analysis results and audio are persisted to SQLite and local filesystem, forming a chronological sentence library for review.
 
-The target user scored 80 on TOEFL with CET-4 vocabulary level (~3500 words). The vocabulary analysis targets words above CET-4 level, and the deep structure analysis breaks down how complex sentences are constructed in accessible language.
+The target user scored 80 on TOEFL with CET-6 vocabulary level. The vocabulary analysis targets words above CET-6 level, and the deep structure analysis breaks down how complex sentences are constructed in accessible language.
 
 The entire application is English-only — all UI text, analysis output, labels, and prompts are in English.
 
@@ -225,7 +225,7 @@ The analysis uses a carefully designed multi-layer approach. The GPT call handle
 
 **Layer 2 — Phrase/Chunk Level**: Within each clause, identify the functional chunks: subject phrase, verb phrase, object phrase, adverbial phrases, prepositional phrases, etc. Each chunk is mapped to its position in the **corrected** sentence via character offsets.
 
-**Layer 3 — Word Level (Key Vocabulary — CET-4+ focus)**: Extract words that are above CET-4 level (~3500 common words) — academic words, uncommon words, and words commonly confused by English learners. For each word, provide:
+**Layer 3 — Word Level (Key Vocabulary — CET-6+ focus)**: Extract words that are above CET-6 level (~5500 common words) — academic words, uncommon words, and words commonly confused by English learners. For each word, provide:
 - IPA phonetic transcription
 - Part of speech
 - A detailed, multi-sentence definition
@@ -236,14 +236,14 @@ The analysis uses a carefully designed multi-layer approach. The GPT call handle
 - Clause connections: How clauses relate to each other (coordination, subordination) and why
 - Tense logic: Why specific tenses are chosen, explained in simple terms
 - Phrase/idiom usage: Identify and explain any phrases, idioms, or fixed collocations
-- Written in simple, accessible language suitable for CET-4 level learners
+- Written in simple, accessible language suitable for CET-6 level learners
 
 ### GPT Prompt Design (UPDATED)
 
 The system prompt is engineered to produce correction + analysis + deep structure in a single call:
 
 ```
-You are an expert English linguist and language teacher helping an English learner at CET-4 vocabulary level (~3500 words, roughly CEFR A2-B1, TOEFL score ~80). The learner is weak at pronunciation, listening, and complex/hard words. They want to deeply understand how English sentences are constructed.
+You are an expert English linguist and language teacher helping an English learner at CET-6 vocabulary level (~5500 words, roughly CEFR B2, TOEFL score ~80). The learner is weak at pronunciation, listening, and complex/hard words. They want to deeply understand how English sentences are constructed.
 
 All output must be in English.
 
@@ -266,8 +266,8 @@ Layer 2 — Phrase-Level Chunking:
   - The grammatical function (e.g., "subject", "main verb", "direct object", "adverbial of time")
   - A brief explanation of its role in the sentence
 
-Layer 3 — Key Vocabulary (focus on words ABOVE CET-4 level):
-- Select words that are above CET-4 level (~3500 common English words). Include academic words, uncommon words, and words commonly confused by English learners.
+Layer 3 — Key Vocabulary (focus on words ABOVE CET-6 level):
+- Select words that are above CET-6 level (~5500 common English words). Include academic words, uncommon words, and words commonly confused by English learners.
 - For each word, provide:
   - The word form as it appears
   - IPA phonetic transcription
@@ -275,10 +275,10 @@ Layer 3 — Key Vocabulary (focus on words ABOVE CET-4 level):
   - A CONCISE definition (one clear sentence — not a multi-sentence explanation)
   - A usage note explaining how the word functions in this specific sentence
   - A difficulty reason explaining why this word is hard or important for English learners
-  - One example sentence that best demonstrates the word's meaning, simple enough for CET-4 level learners
+  - One example sentence that best demonstrates the word's meaning, simple enough for CET-6 level learners
 
 Layer 4 — Deep Structure Analysis:
-Provide an accessible breakdown of how this sentence is constructed. Write in simple, clear language that a CET-4 level learner can understand.
+Provide an accessible breakdown of how this sentence is constructed. Write in simple, clear language that a CET-6 level learner can understand.
 - clauseConnections: Explain how the clauses in this sentence connect to each other. What type of connection is it (coordination with "and/but/or", subordination with "because/although/when/that", etc.)? Why does the author connect them this way? What logical relationship does it express?
 - tenseLogic: Explain the tense(s) used in this sentence. Why is this tense chosen? What would change if a different tense were used? Keep the explanation simple and practical.
 - phraseExplanations: Identify any notable phrases, idioms, fixed collocations, or phrasal verbs. Explain what they mean and how they work in this sentence.

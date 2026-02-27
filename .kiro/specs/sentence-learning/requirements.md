@@ -4,7 +4,7 @@
 
 "Learn English from Sentences" is a single-user MVP website. The core feature: users input an English sentence, and the system performs grammar auto-correction, multi-layer linguistic analysis (clause structure, phrase-level grammar chunking, key vocabulary with rich explanations, deep structural analysis), and generates sentence audio via OpenAI API. Results are displayed with color-coded components, clickable sentence parts showing inline details, and a whole-sentence correction comparison. Analyzed sentences are saved to a local database, forming a chronological sentence library for review.
 
-The target user scored 80 on TOEFL with a vocabulary level around CET-4 (~3500 words, roughly CEFR A2-B1). The user is weak at pronunciation, listening, and complex/hard words. The analysis is tailored to explain any word above CET-4 level with rich, detailed explanations and to provide deep structural breakdowns of how complex sentences are constructed.
+The target user scored 80 on TOEFL with a vocabulary level around CET-6 (~5500 words, roughly CEFR B2). The user is weak at pronunciation, listening, and complex/hard words. The analysis is tailored to explain any word above CET-6 level with rich, detailed explanations and to provide deep structural breakdowns of how complex sentences are constructed.
 
 The entire application is English-only — all UI text, analysis output, labels, prompts, and explanations are in English.
 
@@ -18,7 +18,7 @@ The entire application is English-only — all UI text, analysis output, labels,
 - **Detail_View**: Frontend inline detail view that shows contextual information directly below the color-coded sentence when a part is clicked, keeping everything compact within one viewport
 - **Sentence_Record**: A complete sentence record in the database, containing the original sentence, corrected sentence, Analysis_Result, and audio file path
 - **Correction**: A single spelling or grammar fix applied to the original sentence, containing the original text, corrected text, and reason for the change
-- **Structure_Analysis**: Deep sentence structure analysis including clause connection analysis, tense logic explanation, and phrase/idiom usage explanation, written in accessible language for CET-4 level learners
+- **Structure_Analysis**: Deep sentence structure analysis including clause connection analysis, tense logic explanation, and phrase/idiom usage explanation, written in accessible language for CET-6 level learners
 - **Inline_Tag_Badge**: A small chip/badge displayed inline next to the sentence text showing the context tag, with click-to-edit functionality via a compact popover
 - **Two_Column_Layout**: A responsive layout where sentence structure analysis appears on the left and vocabulary cards appear on the right, collapsing to a single column on narrow viewports
 
@@ -59,13 +59,13 @@ The entire application is English-only — all UI text, analysis output, labels,
 3. WHEN the OpenAI GPT API returns data that does not conform to the expected JSON schema, THE Sentence_Analyzer SHALL return a parse error and prompt the user to retry
 4. THE Sentence_Analyzer SHALL use prompt engineering with OpenAI Structured Outputs to ensure the GPT API returns consistent structured JSON format
 
-### Requirement 4: CET-4 Level Vocabulary Explanations
+### Requirement 4: CET-6 Level Vocabulary Explanations
 
-**User Story:** As an English learner at CET-4 vocabulary level (~3500 words), I want each word above CET-4 level to have a full, rich explanation, so that I can deeply understand and remember these words.
+**User Story:** As an English learner at CET-6 vocabulary level (~5500 words), I want each word above CET-6 level to have a full, rich explanation, so that I can deeply understand and remember these words.
 
 #### Acceptance Criteria
 
-1. THE Sentence_Analyzer SHALL focus vocabulary extraction on words above CET-4 level (~3500 common words), including academic words, uncommon words, and words commonly confused by English learners
+1. THE Sentence_Analyzer SHALL focus vocabulary extraction on words above CET-6 level (~5500 common words), including academic words, uncommon words, and words commonly confused by English learners
 2. WHEN vocabulary items are returned, each item SHALL include: IPA pronunciation guide, part of speech, a detailed multi-sentence definition, a contextual usage note explaining how the word functions in this specific sentence, and a difficulty reason explaining why this word is hard or important for English learners
 3. THE Color_Coded_View SHALL visually distinguish difficult vocabulary words with a special highlight style (underline or background highlight) that makes them stand out from regular grammar color coding
 4. THE Detail_View SHALL display each vocabulary item in a compact inline format showing all fields (pronunciation, part of speech, detailed definition, usage note, difficulty reason)
@@ -97,14 +97,14 @@ The entire application is English-only — all UI text, analysis output, labels,
 
 ### Requirement 7: Deep Sentence Structure Analysis
 
-**User Story:** As a CET-4 level English learner, I want to deeply understand how complex sentences are constructed — how clauses connect, why certain tenses are chosen, how phrases are used — so that I can truly understand the logic of long and complex sentences.
+**User Story:** As a CET-6 level English learner, I want to deeply understand how complex sentences are constructed — how clauses connect, why certain tenses are chosen, how phrases are used — so that I can truly understand the logic of long and complex sentences.
 
 #### Acceptance Criteria
 
 1. WHEN analyzing a sentence with multiple clauses, THE Sentence_Analyzer SHALL provide clause connection analysis explaining the relationship between clauses (coordination, subordination) and why they connect that way
 2. WHEN analyzing tense usage in a sentence, THE Sentence_Analyzer SHALL explain the logic and reasoning behind tense choices in accessible language, explaining why this tense is used rather than another
 3. WHEN a sentence contains phrases, idioms, or fixed collocations, THE Sentence_Analyzer SHALL identify and explain these usages
-4. THE Structure_Analysis SHALL use simple, accessible language suitable for CET-4 level learners, breaking down complex concepts into easy-to-understand explanations
+4. THE Structure_Analysis SHALL use simple, accessible language suitable for CET-6 level learners, breaking down complex concepts into easy-to-understand explanations
 5. THE Detail_View SHALL clearly display the deep structure analysis in the analysis results, helping users understand how sentence parts fit together
 
 ### Requirement 8: Save Sentence to Library
@@ -181,7 +181,7 @@ The entire application is English-only — all UI text, analysis output, labels,
 
 1. THE VocabularyItem type SHALL include an `exampleSentence` field containing one example sentence that best demonstrates the word's meaning
 2. THE Sentence_Analyzer GPT prompt SHALL instruct the model to generate concise one-sentence definitions instead of multi-sentence definitions for each vocabulary word
-3. THE Sentence_Analyzer GPT prompt SHALL instruct the model to generate one example sentence per vocabulary word that is simple enough for CET-4 level learners
+3. THE Sentence_Analyzer GPT prompt SHALL instruct the model to generate one example sentence per vocabulary word that is simple enough for CET-6 level learners
 4. THE frontend SHALL display each vocabulary item as a compact card showing the word, pronunciation, part of speech, concise definition, example sentence, and difficulty reason
 5. THE example sentence in each vocabulary card SHALL be visually distinct (e.g., italic or different color) from the definition text
 

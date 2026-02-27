@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implement optimizations to the existing sentence learning app: add deep structure analysis, update vocabulary threshold to CET-4 level, make the UI compact with inline details, simplify correction comparison to whole-sentence only, fix ColorCodedSentence text duplication bug, add inline tag badge, implement two-column analysis layout, and add concise vocabulary with example sentences. All previously completed tasks (1-22) are marked done. New tasks (23-30) cover the UI/UX optimization changes.
+Implement optimizations to the existing sentence learning app: add deep structure analysis, update vocabulary threshold to CET-6 level, make the UI compact with inline details, simplify correction comparison to whole-sentence only, fix ColorCodedSentence text duplication bug, add inline tag badge, implement two-column analysis layout, and add concise vocabulary with example sentences. All previously completed tasks (1-22) are marked done. New tasks (23-30) cover the UI/UX optimization changes.
 
 ## Tasks
 
@@ -175,10 +175,10 @@ Implement optimizations to the existing sentence learning app: add deep structur
     - Add `structureAnalysis` to the `required` array in the schema
     - _Requirements: 3.2, 7.1, 7.2, 7.3_
 
-- [x] 17. Update GPT prompt for CET-4 vocabulary and deep structure (`lib/openai.ts`)
+- [x] 17. Update GPT prompt for CET-6 vocabulary and deep structure (`lib/openai.ts`)
   - [x] 17.1 Update ANALYSIS_SYSTEM_PROMPT
-    - Change vocabulary target from "B2+ level, academic words, TOEFL-level" to "above CET-4 level (~3500 common words)"
-    - Change learner description from "TOEFL-level English learner (score ~80)" to "English learner at CET-4 vocabulary level (~3500 words, roughly CEFR A2-B1, TOEFL score ~80)"
+    - Change vocabulary target from "B2+ level, academic words, TOEFL-level" to "above CET-6 level (~5500 common words)"
+    - Change learner description from "TOEFL-level English learner (score ~80)" to "English learner at CET-6 vocabulary level (~5500 words, roughly CEFR B2, TOEFL score ~80)"
     - Add Layer 4 — Deep Structure Analysis section to the prompt with clauseConnections, tenseLogic, phraseExplanations instructions
     - All output must remain in English
     - _Requirements: 4.1, 7.1, 7.2, 7.3, 7.4_
@@ -226,7 +226,7 @@ Implement optimizations to the existing sentence learning app: add deep structur
     - _Requirements: 6.4, 7.5_
 
 - [x] 22. Checkpoint - Full optimization verification
-  - Ensure all changes compile, all tests pass, the app displays compact analysis with structure analysis, whole-sentence correction comparison, and CET-4 level vocabulary targeting. Ask the user if questions arise.
+  - Ensure all changes compile, all tests pass, the app displays compact analysis with structure analysis, whole-sentence correction comparison, and CET-6 level vocabulary targeting. Ask the user if questions arise.
 
 - [x] 23. Add `exampleSentence` to VocabularyItem and update GPT prompt
   - [x] 23.1 Update VocabularyItem type and JSON schema (`lib/types.ts`)
@@ -235,7 +235,7 @@ Implement optimizations to the existing sentence learning app: add deep structur
     - _Requirements: 14.1_
   - [x] 23.2 Update GPT prompt for concise definitions and example sentences (`lib/openai.ts`)
     - Change vocabulary definition instruction from "DETAILED definition (2-3 sentences)" to "CONCISE definition (one clear sentence)"
-    - Add instruction to generate one example sentence per vocabulary word, simple enough for CET-4 level learners
+    - Add instruction to generate one example sentence per vocabulary word, simple enough for CET-6 level learners
     - Add `exampleSentence` to the validation logic in `analyzeSentence`
     - _Requirements: 14.2, 14.3_
   - [ ]* 23.3 Update existing tests for exampleSentence field
