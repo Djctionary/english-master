@@ -3,8 +3,9 @@ import { NextRequest } from "next/server";
 import fs from "fs";
 import path from "path";
 import { GET } from "@/app/api/audio/[filename]/route";
+import { getAudioDir } from "@/lib/storage-paths";
 
-const AUDIO_DIR = path.join(process.cwd(), "data", "audio");
+const AUDIO_DIR = getAudioDir();
 const TEST_FILENAME = "a1b2c3d4e5f6a7b8.mp3";
 const TEST_FILEPATH = path.join(AUDIO_DIR, TEST_FILENAME);
 const TEST_AUDIO_CONTENT = Buffer.from([0xff, 0xfb, 0x90, 0x00, 0x01, 0x02]);

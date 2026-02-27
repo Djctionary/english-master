@@ -4,9 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
-/** Directory where audio files are stored */
-const AUDIO_DIR = path.join(process.cwd(), "data", "audio");
+import { getAudioDir } from "@/lib/storage-paths";
 
 /** Valid audio filename pattern: 1+ hex chars followed by .mp3 */
 const FILENAME_PATTERN = /^[a-f0-9]+\.mp3$/;
@@ -32,7 +30,7 @@ export async function GET(
       );
     }
 
-    const filepath = path.join(AUDIO_DIR, filename);
+    const filepath = path.join(getAudioDir(), filename);
 
     if (!fs.existsSync(filepath)) {
       return NextResponse.json(

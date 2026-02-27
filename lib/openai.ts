@@ -6,6 +6,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { AnalysisResult, analysisResultSchema } from "@/lib/types";
+import { getAudioDir } from "@/lib/storage-paths";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -128,9 +129,6 @@ export async function analyzeSentence(
   return parsed;
 }
 
-/** Directory where audio files are stored */
-const AUDIO_DIR = path.join(process.cwd(), "data", "audio");
-
 /**
  * Generates a SHA-256 hash-based filename for a given sentence.
  * Uses the first 16 hex characters of the hash + ".mp3".
@@ -152,8 +150,9 @@ export function generateAudioFilename(sentence: string): string {
  * @throws Error if the OpenAI TTS API call fails or audio cannot be saved
  */
 export async function generateAudio(sentence: string): Promise<string> {
+  const audioDir = getAudioDir();
   const filename = generateAudioFilename(sentence);
-  const filepath = path.join(AUDIO_DIR, filename);
+  const filepath = path.join(audioDir, filename);
 
   // Reuse existing audio file if it already exists (Requirement 3.3)
   if (fs.existsSync(filepath)) {
@@ -161,8 +160,8 @@ export async function generateAudio(sentence: string): Promise<string> {
   }
 
   // Ensure the audio directory exists
-  if (!fs.existsSync(AUDIO_DIR)) {
-    fs.mkdirSync(AUDIO_DIR, { recursive: true });
+  if (!fs.existsSync(audioDir)) {
+    fs.mkdirSync(audioDir, { recursive: true });
   }
 
   // Call OpenAI TTS API (Requirement 3.1)

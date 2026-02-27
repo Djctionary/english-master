@@ -3,6 +3,7 @@ import type { AnalysisResult } from "@/lib/types";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { getAudioDir } from "@/lib/storage-paths";
 
 // Mock the OpenAI module before importing the service
 vi.mock("openai", () => {
@@ -310,7 +311,7 @@ describe("generateAudioFilename", () => {
 });
 
 describe("generateAudio (lib/openai.ts)", () => {
-  const AUDIO_DIR = path.join(process.cwd(), "data", "audio");
+  const AUDIO_DIR = getAudioDir();
   const testSentence = "The quick brown fox jumps over the lazy dog.";
   let testFilename: string;
   let testFilepath: string;
