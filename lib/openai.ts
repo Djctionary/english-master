@@ -60,6 +60,48 @@ Also provide:
 
 Be precise with character indices relative to the corrected sentence. Do not skip any part of the corrected sentence in the phrase-level chunking — every word must belong to exactly one chunk.`;
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function hasAnalysisResultShape(value: unknown): value is AnalysisResult {
+  if (!isObject(value)) return false;
+
+  if (typeof value.originalSentence !== "string") return false;
+  if (typeof value.correctedSentence !== "string") return false;
+  if (!Array.isArray(value.corrections)) return false;
+  if (!Array.isArray(value.clauses)) return false;
+  if (!Array.isArray(value.components)) return false;
+  if (!Array.isArray(value.vocabulary)) return false;
+  if (!Array.isArray(value.grammarNotes)) return false;
+  if (!value.grammarNotes.every((note) => typeof note === "string")) return false;
+  if (typeof value.paraphrase !== "string") return false;
+
+  if (!isObject(value.structureAnalysis)) return false;
+  if (typeof value.structureAnalysis.clauseConnections !== "string") return false;
+  if (typeof value.structureAnalysis.tenseLogic !== "string") return false;
+  if (typeof value.structureAnalysis.phraseExplanations !== "string") return false;
+
+  // Keep vocabulary entry shape checks lightweight but strict enough for rendering.
+  if (
+    !value.vocabulary.every(
+      (v) =>
+        isObject(v) &&
+        typeof v.word === "string" &&
+        typeof v.phonetic === "string" &&
+        typeof v.partOfSpeech === "string" &&
+        typeof v.definition === "string" &&
+        typeof v.usageNote === "string" &&
+        typeof v.difficultyReason === "string" &&
+        typeof v.exampleSentence === "string"
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 /**
  * Analyzes an English sentence using OpenAI Chat Completions API with structured outputs.
  * Returns a multi-layer analysis result containing clause structure, phrase-level grammar
@@ -92,8 +134,17 @@ export async function analyzeSentence(
     );
   }
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
+  const choice = response.choices[0];
+  const content = choice?.message?.content;
+  if (typeof content !== "string" || content.trim().length === 0) {
+    console.error("OpenAI analysis parsing error: empty response content", {
+      finishReason: choice?.finish_reason,
+      refusal:
+        typeof (choice?.message as { refusal?: unknown } | undefined)?.refusal ===
+        "string"
+          ? (choice?.message as { refusal?: string }).refusal
+          : null,
+    });
     throw new Error("Analysis result parsing failed, please retry");
   }
 
@@ -101,28 +152,16 @@ export async function analyzeSentence(
   try {
     parsed = JSON.parse(content) as AnalysisResult;
   } catch {
+    console.error("OpenAI analysis parsing error: invalid JSON content", {
+      contentPreview: content.slice(0, 500),
+    });
     throw new Error("Analysis result parsing failed, please retry");
   }
 
-  // Validate essential fields are present and non-empty
-  if (
-    !parsed.originalSentence ||
-    !parsed.correctedSentence ||
-    !Array.isArray(parsed.corrections) ||
-    !Array.isArray(parsed.clauses) ||
-    parsed.clauses.length === 0 ||
-    !Array.isArray(parsed.components) ||
-    parsed.components.length === 0 ||
-    !Array.isArray(parsed.vocabulary) ||
-    !Array.isArray(parsed.grammarNotes) ||
-    parsed.grammarNotes.length === 0 ||
-    !parsed.paraphrase ||
-    !parsed.structureAnalysis ||
-    !parsed.structureAnalysis.clauseConnections ||
-    !parsed.structureAnalysis.tenseLogic ||
-    !parsed.structureAnalysis.phraseExplanations ||
-    parsed.vocabulary.some((v) => !v.exampleSentence)
-  ) {
+  if (!hasAnalysisResultShape(parsed)) {
+    console.error("OpenAI analysis parsing error: shape validation failed", {
+      parsedPreview: JSON.stringify(parsed).slice(0, 500),
+    });
     throw new Error("Analysis result parsing failed, please retry");
   }
 

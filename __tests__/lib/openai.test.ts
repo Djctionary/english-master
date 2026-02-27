@@ -227,37 +227,34 @@ describe("analyzeSentence (lib/openai.ts)", () => {
     );
   });
 
-  it("should throw a parse error when clauses array is empty", async () => {
+  it("should accept empty clauses array", async () => {
     const analysis = makeValidAnalysis({ clauses: [] });
     mockCreate.mockResolvedValueOnce(
       makeMockResponse(JSON.stringify(analysis))
     );
 
-    await expect(analyzeSentence("Test.")).rejects.toThrow(
-      "Analysis result parsing failed, please retry"
-    );
+    const result = await analyzeSentence("Test.");
+    expect(result.clauses).toEqual([]);
   });
 
-  it("should throw a parse error when components array is empty", async () => {
+  it("should accept empty components array", async () => {
     const analysis = makeValidAnalysis({ components: [] });
     mockCreate.mockResolvedValueOnce(
       makeMockResponse(JSON.stringify(analysis))
     );
 
-    await expect(analyzeSentence("Test.")).rejects.toThrow(
-      "Analysis result parsing failed, please retry"
-    );
+    const result = await analyzeSentence("Test.");
+    expect(result.components).toEqual([]);
   });
 
-  it("should throw a parse error when grammarNotes array is empty", async () => {
+  it("should accept empty grammarNotes array", async () => {
     const analysis = makeValidAnalysis({ grammarNotes: [] });
     mockCreate.mockResolvedValueOnce(
       makeMockResponse(JSON.stringify(analysis))
     );
 
-    await expect(analyzeSentence("Test.")).rejects.toThrow(
-      "Analysis result parsing failed, please retry"
-    );
+    const result = await analyzeSentence("Test.");
+    expect(result.grammarNotes).toEqual([]);
   });
 
   it("should accept a response with empty vocabulary array", async () => {
