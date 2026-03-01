@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface AudioPlayerProps {
   audioFilename: string | null;
@@ -10,6 +10,17 @@ export default function AudioPlayer({ audioFilename }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.load();
+    }
+    setIsPlaying(false);
+    setPlayError(null);
+  }, [audioFilename]);
 
   if (!audioFilename) {
     return null;

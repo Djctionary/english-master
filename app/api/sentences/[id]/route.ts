@@ -2,7 +2,12 @@
 // Requirements: 7.3
 
 import { NextRequest, NextResponse } from "next/server";
-import { initDatabase, getSentenceById, updateSentenceTag } from "@/lib/sentence-store";
+import {
+  initDatabase,
+  getSentenceById,
+  updateSentenceTag,
+  deleteSentenceById,
+} from "@/lib/sentence-store";
 import type { SentenceTag } from "@/lib/types";
 
 export async function GET(
@@ -116,6 +121,42 @@ export async function PATCH(
     }
 
     return NextResponse.json(updated);
+  } catch (error) {
+    console.error("Internal server error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/sentences/[id] — Delete a sentence record
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: idParam } = await params;
+
+    const id = Number(idParam);
+    if (!Number.isInteger(id) || id <= 0) {
+      return NextResponse.json(
+        { error: "Invalid sentence ID" },
+        { status: 400 }
+      );
+    }
+
+    await initDatabase();
+    const deleted = await deleteSentenceById(id);
+
+    if (!deleted) {
+      return NextResponse.json(
+        { error: "Sentence record not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(deleted);
   } catch (error) {
     console.error("Internal server error:", error);
     return NextResponse.json(

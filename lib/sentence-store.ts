@@ -66,11 +66,18 @@ function normalizeCreatedAt(value: string | Date): string {
 }
 
 function toSentenceRecord(row: PostgresSentenceRow): SentenceRecord {
+  let parsedAnalysis: AnalysisResult;
+  try {
+    parsedAnalysis = JSON.parse(row.analysis) as AnalysisResult;
+  } catch {
+    parsedAnalysis = {} as AnalysisResult;
+  }
+
   return {
     id: Number(row.id),
     sentence: row.sentence,
     correctedSentence: row.corrected_sentence,
-    analysis: JSON.parse(row.analysis) as AnalysisResult,
+    analysis: parsedAnalysis,
     audioFilename: row.audio_filename,
     tag:
       row.tag_type && row.tag_name
@@ -262,6 +269,57 @@ export async function updateSentenceTag(
   }
 
   return sqliteDb.updateSentenceTag(id, tag);
+}
+
+export async function updateSentenceAnalysis(
+  id: number,
+  payload: {
+    correctedSentence: string;
+    analysis: AnalysisResult;
+    audioFilename: string | null;
+  }
+): Promise<SentenceRecord | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<PostgresSentenceRow>(
+      `UPDATE sentences
+       SET corrected_sentence = $1, analysis = $2, audio_filename = $3
+       WHERE id = $4
+       RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at`,
+      [
+        payload.correctedSentence,
+        JSON.stringify(payload.analysis),
+        payload.audioFilename,
+        id,
+      ]
+    );
+
+    if (result.rows.length === 0) return undefined;
+    return toSentenceRecord(result.rows[0]);
+  }
+
+  return sqliteDb.updateSentenceAnalysis(id, payload);
+}
+
+export async function deleteSentenceById(
+  id: number
+): Promise<SentenceRecord | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<PostgresSentenceRow>(
+      `DELETE FROM sentences
+       WHERE id = $1
+       RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at`,
+      [id]
+    );
+
+    if (result.rows.length === 0) return undefined;
+    return toSentenceRecord(result.rows[0]);
+  }
+
+  return sqliteDb.deleteSentenceById(id);
 }
 
 export async function closeDatabase(): Promise<void> {

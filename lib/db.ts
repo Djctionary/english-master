@@ -110,6 +110,13 @@ function rowToSentenceRecord(row: {
   tag_name: string | null;
   created_at: string;
 }): SentenceRecord {
+  let parsedAnalysis: AnalysisResult;
+  try {
+    parsedAnalysis = JSON.parse(row.analysis) as AnalysisResult;
+  } catch {
+    parsedAnalysis = {} as AnalysisResult;
+  }
+
   const tag: SentenceTag | null =
     row.tag_type && row.tag_name
       ? { type: row.tag_type, name: row.tag_name }
@@ -119,7 +126,7 @@ function rowToSentenceRecord(row: {
     id: row.id,
     sentence: row.sentence,
     correctedSentence: row.corrected_sentence,
-    analysis: JSON.parse(row.analysis) as AnalysisResult,
+    analysis: parsedAnalysis,
     audioFilename: row.audio_filename,
     tag,
     createdAt: row.created_at,
@@ -288,6 +295,49 @@ export function updateSentenceTag(
     .run(tag?.type ?? null, tag?.name ?? null, id);
 
   return getSentenceById(id);
+}
+
+/**
+ * Update analysis-related fields for an existing sentence.
+ * Returns the updated record, or undefined if the id does not exist.
+ */
+export function updateSentenceAnalysis(
+  id: number,
+  payload: {
+    correctedSentence: string;
+    analysis: AnalysisResult;
+    audioFilename: string | null;
+  }
+): SentenceRecord | undefined {
+  const existing = getSentenceById(id);
+  if (!existing) return undefined;
+
+  const database = getDb();
+  database
+    .prepare(
+      "UPDATE sentences SET corrected_sentence = ?, analysis = ?, audio_filename = ? WHERE id = ?"
+    )
+    .run(
+      payload.correctedSentence,
+      JSON.stringify(payload.analysis),
+      payload.audioFilename,
+      id
+    );
+
+  return getSentenceById(id);
+}
+
+/**
+ * Delete a sentence record by id.
+ * Returns the deleted record, or undefined if the id does not exist.
+ */
+export function deleteSentenceById(id: number): SentenceRecord | undefined {
+  const existing = getSentenceById(id);
+  if (!existing) return undefined;
+
+  const database = getDb();
+  database.prepare("DELETE FROM sentences WHERE id = ?").run(id);
+  return existing;
 }
 
 /**

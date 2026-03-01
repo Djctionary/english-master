@@ -5,6 +5,8 @@ import { SentenceRecord } from "@/lib/types";
 export interface SentenceLibraryProps {
   sentences: SentenceRecord[];
   onSelect: (record: SentenceRecord) => void;
+  onDelete?: (record: SentenceRecord) => void;
+  deletingId?: number | null;
   selectedId?: number | null;
   isLoading?: boolean;
 }
@@ -23,6 +25,8 @@ function formatTimestamp(iso: string): string {
 export default function SentenceLibrary({
   sentences,
   onSelect,
+  onDelete,
+  deletingId,
   selectedId,
   isLoading,
 }: SentenceLibraryProps) {
@@ -66,44 +70,73 @@ export default function SentenceLibrary({
     >
       {sentences.map((record) => {
         const isSelected = selectedId === record.id;
+        const isDeleting = deletingId === record.id;
         return (
           <li key={record.id}>
-            <button
-              onClick={() => onSelect(record)}
-              aria-current={isSelected ? "true" : undefined}
+            <div
               style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "12px 16px",
-                border: "none",
+                display: "flex",
+                alignItems: "stretch",
                 borderBottom: "1px solid #E5E7EB",
-                backgroundColor: isSelected ? "#EFF6FF" : "transparent",
-                cursor: "pointer",
-                fontSize: "14px",
-                color: "#1F2937",
               }}
             >
-              <div
+              <button
+                onClick={() => onSelect(record)}
+                aria-current={isSelected ? "true" : undefined}
                 style={{
-                  fontWeight: isSelected ? 600 : 400,
-                  marginBottom: "4px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  display: "block",
+                  flex: 1,
+                  textAlign: "left",
+                  padding: "12px 16px",
+                  border: "none",
+                  backgroundColor: isSelected ? "#EFF6FF" : "transparent",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  color: "#1F2937",
                 }}
               >
-                {record.sentence}
-              </div>
-              <div style={{ fontSize: "12px", color: "#9CA3AF" }}>
-                {formatTimestamp(record.createdAt)}
-              </div>
-              {record.tag && (
-                <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
-                  {record.tag.type}: {record.tag.name}
+                <div
+                  style={{
+                    fontWeight: isSelected ? 600 : 400,
+                    marginBottom: "4px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {record.sentence}
                 </div>
+                <div style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                  {formatTimestamp(record.createdAt)}
+                </div>
+                {record.tag && (
+                  <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
+                    {record.tag.type}: {record.tag.name}
+                  </div>
+                )}
+              </button>
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(record)}
+                  disabled={isDeleting}
+                  aria-label={`Delete sentence: ${record.sentence}`}
+                  title="Delete sentence"
+                  style={{
+                    border: "none",
+                    borderLeft: "1px solid #E5E7EB",
+                    backgroundColor: "#FFFFFF",
+                    color: "#B91C1C",
+                    width: "44px",
+                    minWidth: "44px",
+                    cursor: isDeleting ? "not-allowed" : "pointer",
+                    fontSize: "15px",
+                  }}
+                >
+                  {isDeleting ? "…" : "×"}
+                </button>
               )}
-            </button>
+            </div>
           </li>
         );
       })}
