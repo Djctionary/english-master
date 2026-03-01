@@ -8,11 +8,26 @@ import path from "path";
 import { AnalysisResult, analysisResultSchema } from "@/lib/types";
 import { getAudioDir } from "@/lib/storage-paths";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-  timeout: 60_000, // 60 seconds
-});
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (openaiClient) return openaiClient;
+
+  const apiKey =
+    process.env.OPENAI_API_KEY?.trim() ||
+    (process.env.NODE_ENV === "test" ? "test-key" : "");
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is missing");
+  }
+
+  openaiClient = new OpenAI({
+    apiKey,
+    baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+    timeout: 60_000, // 60 seconds
+  });
+
+  return openaiClient;
+}
 
 const ANALYSIS_SYSTEM_PROMPT = `You are an expert English linguist and language teacher helping an English learner at CET-4 vocabulary level (~3500 words, roughly CEFR A2-B1, TOEFL score ~80). The learner is weak at pronunciation, listening, and complex/hard words. They want to deeply understand how English sentences are constructed.
 
@@ -116,7 +131,7 @@ export async function analyzeSentence(
 ): Promise<AnalysisResult> {
   let response;
   try {
-    response = await openai.chat.completions.create({
+    response = await getOpenAIClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
@@ -204,7 +219,7 @@ export async function generateAudio(sentence: string): Promise<string> {
   }
 
   // Call OpenAI TTS API (Requirement 3.1)
-  const response = await openai.audio.speech.create({
+  const response = await getOpenAIClient().audio.speech.create({
     model: "tts-1",
     voice: "alloy",
     input: sentence,

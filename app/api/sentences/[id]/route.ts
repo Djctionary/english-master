@@ -2,7 +2,7 @@
 // Requirements: 7.3
 
 import { NextRequest, NextResponse } from "next/server";
-import { initDatabase, getSentenceById, updateSentenceTag } from "@/lib/db";
+import { initDatabase, getSentenceById, updateSentenceTag } from "@/lib/sentence-store";
 import type { SentenceTag } from "@/lib/types";
 
 export async function GET(
@@ -20,8 +20,8 @@ export async function GET(
       );
     }
 
-    initDatabase();
-    const record = getSentenceById(id);
+    await initDatabase();
+    const record = await getSentenceById(id);
 
     if (!record) {
       return NextResponse.json(
@@ -105,8 +105,8 @@ export async function PATCH(
       );
     }
 
-    initDatabase();
-    const updated = updateSentenceTag(id, normalizedTag);
+    await initDatabase();
+    const updated = await updateSentenceTag(id, normalizedTag);
 
     if (!updated) {
       return NextResponse.json(

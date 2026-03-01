@@ -2,7 +2,7 @@
 // Requirements: 1.1, 1.2, 2.1, 3.1, 3.4, 5.1, 5.3, 7.1
 
 import { NextRequest, NextResponse } from "next/server";
-import { findSentenceByText, insertSentence, initDatabase } from "@/lib/db";
+import { findSentenceByText, insertSentence, initDatabase } from "@/lib/sentence-store";
 import { analyzeSentence, generateAudio } from "@/lib/openai";
 import type { SentenceRecord } from "@/lib/types";
 
@@ -32,10 +32,10 @@ export async function POST(request: NextRequest) {
 
   try {
     // Ensure database is initialized
-    initDatabase();
+    await initDatabase();
 
     // Step 2: Check DB for existing sentence — return cached if found (Requirement 5.3)
-    const existing = findSentenceByText(trimmedSentence);
+    const existing = await findSentenceByText(trimmedSentence);
     if (existing) {
       return NextResponse.json(existing);
     }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    const savedRecord = insertSentence(record);
+    const savedRecord = await insertSentence(record);
 
     // Step 6: Return the SentenceRecord
     return NextResponse.json(savedRecord);
