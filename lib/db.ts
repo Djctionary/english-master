@@ -243,6 +243,35 @@ export function getSentenceById(id: number): SentenceRecord | undefined {
 }
 
 /**
+ * Retrieve a single sentence record by its audio filename.
+ * Returns undefined if no record exists with the given filename.
+ */
+export function getSentenceByAudioFilename(
+  audioFilename: string
+): SentenceRecord | undefined {
+  const database = getDb();
+  const row = database
+    .prepare(
+      "SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE audio_filename = ?"
+    )
+    .get(audioFilename) as
+    | {
+        id: number;
+        sentence: string;
+        corrected_sentence: string;
+        analysis: string;
+        audio_filename: string | null;
+        tag_type: string | null;
+        tag_name: string | null;
+        created_at: string;
+      }
+    | undefined;
+
+  if (!row) return undefined;
+  return rowToSentenceRecord(row);
+}
+
+/**
  * Update or clear the context tag for a sentence by id.
  * Returns the updated record, or undefined if the id does not exist.
  */

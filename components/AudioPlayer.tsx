@@ -9,6 +9,7 @@ interface AudioPlayerProps {
 export default function AudioPlayer({ audioFilename }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playError, setPlayError] = useState<string | null>(null);
 
   if (!audioFilename) {
     return null;
@@ -21,22 +22,36 @@ export default function AudioPlayer({ audioFilename }: AudioPlayerProps) {
     if (isPlaying) {
       audio.pause();
     } else {
-      audio.play();
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {
+          setPlayError("Audio unavailable. Please try again.");
+          setIsPlaying(false);
+        });
+      }
     }
   };
 
-  const handlePlay = () => setIsPlaying(true);
+  const handlePlay = () => {
+    setPlayError(null);
+    setIsPlaying(true);
+  };
   const handlePause = () => setIsPlaying(false);
   const handleEnded = () => setIsPlaying(false);
+  const handleError = () => {
+    setIsPlaying(false);
+    setPlayError("Audio unavailable. Please try again.");
+  };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
       <audio
         ref={audioRef}
         src={`/api/audio/${audioFilename}`}
         onPlay={handlePlay}
         onPause={handlePause}
         onEnded={handleEnded}
+        onError={handleError}
         data-testid="audio-element"
       />
       <button
@@ -54,6 +69,11 @@ export default function AudioPlayer({ audioFilename }: AudioPlayerProps) {
       >
         {isPlaying ? "⏸ Pause" : "▶ Play"}
       </button>
+      {playError && (
+        <span style={{ fontSize: "11px", color: "#DC2626", maxWidth: "180px", textAlign: "right" }}>
+          {playError}
+        </span>
+      )}
     </div>
   );
 }

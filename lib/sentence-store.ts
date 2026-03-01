@@ -221,6 +221,27 @@ export async function getSentenceById(
   return sqliteDb.getSentenceById(id);
 }
 
+export async function getSentenceByAudioFilename(
+  audioFilename: string
+): Promise<SentenceRecord | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<PostgresSentenceRow>(
+      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+       FROM sentences
+       WHERE audio_filename = $1
+       LIMIT 1`,
+      [audioFilename]
+    );
+
+    if (result.rows.length === 0) return undefined;
+    return toSentenceRecord(result.rows[0]);
+  }
+
+  return sqliteDb.getSentenceByAudioFilename(audioFilename);
+}
+
 export async function updateSentenceTag(
   id: number,
   tag: SentenceTag | null
