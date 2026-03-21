@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import fs from "fs";
-import type { SentenceRecord, AnalysisResult, SentenceTag } from "./types";
+import type { SentenceRecord, AnalysisResult, SentenceTag, SearchOptions, SearchResult } from "./types";
 import { getDataDir, getDatabasePath } from "./storage-paths";
 
 let db: Database.Database | null = null;
@@ -325,6 +325,57 @@ export function updateSentenceAnalysis(
     );
 
   return getSentenceById(id);
+}
+
+/**
+ * Search and paginate sentences with optional text query and tag filters.
+ */
+export function searchSentences(options: SearchOptions = {}): SearchResult {
+  const database = getDb();
+  const { query, tagType, tagName, limit = 20, offset = 0 } = options;
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (query) {
+    conditions.push("sentence LIKE ?");
+    params.push(`%${query}%`);
+  }
+  if (tagType) {
+    conditions.push("tag_type = ?");
+    params.push(tagType);
+  }
+  if (tagName) {
+    conditions.push("tag_name = ?");
+    params.push(tagName);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const countRow = database
+    .prepare(`SELECT COUNT(*) as count FROM sentences ${where}`)
+    .get(...params) as { count: number };
+  const total = countRow.count;
+
+  const rows = database
+    .prepare(
+      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    )
+    .all(...params, limit, offset) as Array<{
+    id: number;
+    sentence: string;
+    corrected_sentence: string;
+    analysis: string;
+    audio_filename: string | null;
+    tag_type: string | null;
+    tag_name: string | null;
+    created_at: string;
+  }>;
+
+  return {
+    sentences: rows.map(rowToSentenceRecord),
+    total,
+  };
 }
 
 /**

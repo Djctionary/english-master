@@ -33,10 +33,10 @@ export interface GrammarComponent {
   text: string;
   /** Grammatical function: "subject", "predicate", "direct_object", etc. */
   role: string;
-  /** Start character index (0-based, inclusive) */
-  startIndex: number;
-  /** End character index (exclusive) */
-  endIndex: number;
+  /** Start character index (0-based, inclusive) — optional, computed client-side from text */
+  startIndex?: number;
+  /** End character index (exclusive) — optional, computed client-side from text */
+  endIndex?: number;
   /** Brief explanation of its role */
   description: string;
 }
@@ -59,6 +59,31 @@ export interface VocabularyItem {
   difficultyReason: string;
   /** One example sentence demonstrating the word's meaning */
   exampleSentence: string;
+  /** 2-4 common collocations for this word */
+  commonCollocations?: string[];
+}
+
+/**
+ * A single layer in the sentence skeleton, showing how information
+ * is added to the core meaning.
+ */
+export interface SkeletonLayer {
+  /** Short label: "when", "which", "where", "why", "how", etc. */
+  label: string;
+  /** The actual text from the sentence */
+  added: string;
+  /** What this layer contributes to meaning */
+  explanation: string;
+}
+
+/**
+ * Sentence skeleton: core meaning stripped bare, then rebuilt layer by layer.
+ */
+export interface SentenceSkeleton {
+  /** The bare core sentence (subject + verb + object only) */
+  core: string;
+  /** Each layer adds information to the core */
+  layers: SkeletonLayer[];
 }
 
 /**
@@ -96,6 +121,12 @@ export interface AnalysisResult {
   grammarNotes: string[];
   /** Overall meaning paraphrase */
   paraphrase: string;
+  /** One simpler way to express the same meaning */
+  simplifiedVersion?: string;
+  /** Reusable abstract sentence pattern */
+  sentencePattern?: string;
+  /** Sentence skeleton: core meaning + layers */
+  sentenceSkeleton?: SentenceSkeleton;
 }
 
 /**
@@ -125,6 +156,30 @@ export interface SentenceRecord {
   tag?: SentenceTag | null;
   /** ISO 8601 timestamp */
   createdAt: string;
+}
+
+/**
+ * Options for searching/paginating sentences.
+ */
+export interface SearchOptions {
+  /** LIKE %query% on sentence text */
+  query?: string;
+  /** Exact match on tag_type */
+  tagType?: string;
+  /** Exact match on tag_name */
+  tagName?: string;
+  /** Page size, default 20 */
+  limit?: number;
+  /** Offset for pagination, default 0 */
+  offset?: number;
+}
+
+/**
+ * Paginated search result.
+ */
+export interface SearchResult {
+  sentences: SentenceRecord[];
+  total: number;
 }
 
 /**
@@ -195,33 +250,25 @@ export const analysisResultSchema = {
       },
       components: {
         type: "array" as const,
-        description: "Phrase-level grammar components/chunks (indices relative to correctedSentence)",
+        description: "Phrase-level grammar components/chunks",
         items: {
           type: "object" as const,
           properties: {
             text: {
               type: "string" as const,
-              description: "The exact text span of this chunk",
+              description: "The exact text span of this chunk, copied verbatim from the corrected sentence",
             },
             role: {
               type: "string" as const,
               description:
                 "Grammatical function: subject, predicate, direct_object, etc.",
             },
-            startIndex: {
-              type: "number" as const,
-              description: "Start character index (0-based, inclusive)",
-            },
-            endIndex: {
-              type: "number" as const,
-              description: "End character index (exclusive)",
-            },
             description: {
               type: "string" as const,
               description: "Brief explanation of its role in the sentence",
             },
           },
-          required: ["text", "role", "startIndex", "endIndex", "description"],
+          required: ["text", "role", "description"],
           additionalProperties: false,
         },
       },
@@ -262,6 +309,13 @@ export const analysisResultSchema = {
               description:
                 "One example sentence demonstrating the word's meaning",
             },
+            commonCollocations: {
+              type: "array" as const,
+              description: "2-4 common collocations for this word",
+              items: {
+                type: "string" as const,
+              },
+            },
           },
           required: [
             "word",
@@ -271,6 +325,7 @@ export const analysisResultSchema = {
             "usageNote",
             "difficultyReason",
             "exampleSentence",
+            "commonCollocations",
           ],
           additionalProperties: false,
         },
@@ -308,6 +363,54 @@ export const analysisResultSchema = {
         description:
           "Overall meaning of the sentence in one clear paraphrase",
       },
+      simplifiedVersion: {
+        type: "string" as const,
+        description:
+          "One simpler way to express the same meaning, using basic vocabulary",
+      },
+      sentencePattern: {
+        type: "string" as const,
+        description:
+          "Reusable abstract sentence pattern, e.g. 'Although [condition], [S] [V] [O] that [relative clause] [location]'",
+      },
+      sentenceSkeleton: {
+        type: "object" as const,
+        description:
+          "Sentence skeleton: core meaning stripped bare, then rebuilt layer by layer",
+        properties: {
+          core: {
+            type: "string" as const,
+            description:
+              "The bare core sentence (subject + verb + object only)",
+          },
+          layers: {
+            type: "array" as const,
+            description: "Each layer adds information to the core",
+            items: {
+              type: "object" as const,
+              properties: {
+                label: {
+                  type: "string" as const,
+                  description:
+                    "Short label: when, which, where, why, how, etc.",
+                },
+                added: {
+                  type: "string" as const,
+                  description: "The actual text from the sentence",
+                },
+                explanation: {
+                  type: "string" as const,
+                  description: "What this layer contributes to meaning",
+                },
+              },
+              required: ["label", "added", "explanation"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["core", "layers"],
+        additionalProperties: false,
+      },
     },
     required: [
       "originalSentence",
@@ -319,6 +422,9 @@ export const analysisResultSchema = {
       "structureAnalysis",
       "grammarNotes",
       "paraphrase",
+      "simplifiedVersion",
+      "sentencePattern",
+      "sentenceSkeleton",
     ],
     additionalProperties: false,
   },

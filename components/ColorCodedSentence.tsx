@@ -16,6 +16,59 @@ const ROLE_COLORS: Record<string, { color: string; label: string }> = {
 
 const DEFAULT_ROLE = { color: "#64748B", label: "Other" };
 
+interface ResolvedSpan {
+  comp: GrammarComponent;
+  start: number;
+  end: number;
+}
+
+/**
+ * Match each component's text against the corrected sentence to compute
+ * accurate start/end indices. Greedy left-to-right: each match starts
+ * searching from where the previous match ended, handling duplicates
+ * and substrings correctly.
+ *
+ * Falls back to the AI-provided indices only if text matching fails.
+ */
+function resolveSpans(
+  components: GrammarComponent[],
+  sentence: string
+): ResolvedSpan[] {
+  const spans: ResolvedSpan[] = [];
+  const usedPositions = new Set<number>();
+
+  for (const comp of components) {
+    const needle = comp.text;
+    let found = false;
+
+    // Try exact match first, then case-insensitive
+    for (const haystack of [sentence, sentence.toLowerCase()]) {
+      const search = haystack === sentence ? needle : needle.toLowerCase();
+      let searchFrom = 0;
+      while (searchFrom < haystack.length) {
+        const idx = haystack.indexOf(search, searchFrom);
+        if (idx === -1) break;
+
+        if (!usedPositions.has(idx)) {
+          // Use the length from the actual sentence text, not the needle
+          spans.push({ comp, start: idx, end: idx + search.length });
+          usedPositions.add(idx);
+          found = true;
+          break;
+        }
+        searchFrom = idx + 1;
+      }
+      if (found) break;
+    }
+
+    // If text not found at all, skip this component — don't produce bad spans
+  }
+
+  // Sort by position in sentence
+  spans.sort((a, b) => a.start - b.start || b.end - a.end);
+  return spans;
+}
+
 export interface ColorCodedSentenceProps {
   components: GrammarComponent[];
   correctedSentence: string;
@@ -37,24 +90,17 @@ export default function ColorCodedSentence({
     return vocabularyWords.some((word) => lowerText.includes(word.toLowerCase()));
   }
 
-  // Sort components by startIndex, then by endIndex descending for overlaps
-  const sorted = [...components].sort(
-    (a, b) => a.startIndex - b.startIndex || b.endIndex - a.endIndex
-  );
+  const resolved = resolveSpans(components, correctedSentence);
 
   // Build spans by walking through correctedSentence
   const spans: React.ReactNode[] = [];
   let cursor = 0;
 
-  for (const comp of sorted) {
-    // Skip components that are entirely within already-rendered text (overlap)
-    if (comp.startIndex < cursor) {
-      // If this component extends beyond cursor, adjust; otherwise skip entirely
-      if (comp.endIndex <= cursor) continue;
-      // Partial overlap: we already rendered up to cursor, so skip the overlapping part
-    }
+  for (const { comp, start, end } of resolved) {
+    // Skip if entirely within already-rendered text
+    if (end <= cursor) continue;
 
-    const effectiveStart = Math.max(comp.startIndex, cursor);
+    const effectiveStart = Math.max(start, cursor);
 
     // Fill gap before this component
     if (effectiveStart > cursor) {
@@ -65,17 +111,17 @@ export default function ColorCodedSentence({
     }
 
     // Render the component span using correctedSentence slice
-    const compText = correctedSentence.slice(effectiveStart, comp.endIndex);
+    const compText = correctedSentence.slice(effectiveStart, end);
     const roleInfo = ROLE_COLORS[comp.role] ?? DEFAULT_ROLE;
     const isSelected =
       selectedComponent != null &&
-      selectedComponent.startIndex === comp.startIndex &&
-      selectedComponent.endIndex === comp.endIndex;
+      selectedComponent.text === comp.text &&
+      selectedComponent.role === comp.role;
     const isVocab = containsVocabularyWord(compText);
 
     spans.push(
       <span
-        key={`comp-${comp.startIndex}-${comp.endIndex}`}
+        key={`comp-${start}-${end}`}
         onClick={() => onComponentClick?.(comp)}
         role="button"
         tabIndex={0}
@@ -105,7 +151,7 @@ export default function ColorCodedSentence({
       </span>
     );
 
-    cursor = comp.endIndex;
+    cursor = end;
   }
 
   // Fill trailing text after the last component

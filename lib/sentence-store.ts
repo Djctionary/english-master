@@ -1,4 +1,4 @@
-import type { AnalysisResult, SentenceRecord, SentenceTag } from "@/lib/types";
+import type { AnalysisResult, SentenceRecord, SentenceTag, SearchOptions, SearchResult } from "@/lib/types";
 import * as sqliteDb from "@/lib/db";
 import { Pool } from "pg";
 
@@ -300,6 +300,56 @@ export async function updateSentenceAnalysis(
   }
 
   return sqliteDb.updateSentenceAnalysis(id, payload);
+}
+
+export async function searchSentences(
+  options: SearchOptions = {}
+): Promise<SearchResult> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const { query, tagType, tagName, limit = 20, offset = 0 } = options;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (query) {
+      conditions.push(`sentence ILIKE $${paramIdx++}`);
+      params.push(`%${query}%`);
+    }
+    if (tagType) {
+      conditions.push(`tag_type = $${paramIdx++}`);
+      params.push(tagType);
+    }
+    if (tagName) {
+      conditions.push(`tag_name = $${paramIdx++}`);
+      params.push(tagName);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM sentences ${where}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const dataResult = await pool.query<PostgresSentenceRow>(
+      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+       FROM sentences ${where}
+       ORDER BY created_at DESC, id DESC
+       LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+      [...params, limit, offset]
+    );
+
+    return {
+      sentences: dataResult.rows.map(toSentenceRecord),
+      total,
+    };
+  }
+
+  return sqliteDb.searchSentences(options);
 }
 
 export async function deleteSentenceById(

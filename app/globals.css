@@ -44,3 +44,26 @@ input {
     font-size: 15px;
   }
 }
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  /* Page container: reduce padding */
+  .page-container {
+    padding: 16px 12px !important;
+  }
+
+  /* DetailView: single column */
+  .detail-view-columns {
+    flex-direction: column !important;
+  }
+
+  /* CorrectionComparison: stack vertically */
+  .correction-comparison {
+    flex-direction: column !important;
+  }
+
+  /* Skeleton: reduce indentation on mobile */
+  .skeleton-layer {
+    padding-left: 8px !important;
+  }
+}

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
+import { NextRequest } from "next/server";
 import {
   _resetForTesting,
   initDatabase,
@@ -8,6 +9,14 @@ import {
 } from "@/lib/db";
 import type { AnalysisResult } from "@/lib/types";
 import { GET } from "@/app/api/sentences/route";
+
+function makeRequest(params: Record<string, string> = {}): NextRequest {
+  const url = new URL("http://localhost/api/sentences");
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return new NextRequest(url);
+}
 
 function makeAnalysis(overrides?: Partial<AnalysisResult>): AnalysisResult {
   return {
@@ -68,7 +77,7 @@ describe("GET /api/sentences", () => {
   });
 
   it("should return empty array when no sentences exist", async () => {
-    const res = await GET();
+    const res = await GET(makeRequest());
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data).toEqual([]);
@@ -90,7 +99,7 @@ describe("GET /api/sentences", () => {
       createdAt: "2024-01-02T00:00:00.000Z",
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest());
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data).toHaveLength(2);
@@ -119,7 +128,7 @@ describe("GET /api/sentences", () => {
       createdAt: "2024-01-03T00:00:00.000Z",
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest());
     const data = await res.json();
 
     expect(data[0].sentence).toBe("Third sentence.");
@@ -137,7 +146,7 @@ describe("GET /api/sentences", () => {
       createdAt: "2024-06-15T12:00:00.000Z",
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest());
     const data = await res.json();
     const record = data[0];
 
@@ -160,7 +169,7 @@ describe("GET /api/sentences", () => {
     });
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const res = await GET();
+    const res = await GET(makeRequest());
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBe("Internal server error");

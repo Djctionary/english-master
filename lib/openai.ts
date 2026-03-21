@@ -29,51 +29,37 @@ function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert English linguist and language teacher helping an English learner at CET-4 vocabulary level (~3500 words, roughly CEFR A2-B1, TOEFL score ~80). The learner is weak at pronunciation, listening, and complex/hard words. They want to deeply understand how English sentences are constructed.
+const ANALYSIS_MODEL = process.env.ANALYSIS_MODEL ?? "gpt-4o-mini";
 
-All output must be in English.
+const ANALYSIS_SYSTEM_PROMPT = `Analyze an English sentence for a CET-6 learner. All output in English. Follow the JSON schema exactly.
 
-Step 0 — Grammar & Spelling Correction:
-- Check the input sentence for spelling and grammar errors.
-- Produce a minimally corrected version: fix ONLY spelling and grammar errors. Do NOT change the user's word choices, sentence structure, or meaning.
-- List each correction: the original text, the corrected text, and a brief reason.
-- If no errors are found, set the corrected sentence equal to the original and return an empty corrections list.
+Step 0 — Correct spelling/grammar only. Keep word choices and structure. List each correction.
 
-Then analyze the CORRECTED sentence using a multi-layer approach:
+Step 1 — Clauses: identify each clause with type and role.
 
-Layer 1 — Clause Structure:
-- Identify each clause (main and subordinate). For each clause, state its type (e.g., independent, relative clause, adverbial clause, noun clause) and its role in the sentence.
+Step 2 — Phrase-level chunking of CORRECTED sentence: exact text (copied verbatim), grammatical role, brief explanation. Cover every word in exactly one chunk.
 
-Layer 2 — Phrase-Level Chunking:
-- Break the corrected sentence into functional phrases/chunks: subject, predicate (verb group), object (direct/indirect), complement, adverbial, prepositional phrase, etc.
-- For each chunk, provide:
-  - The exact text span
-  - The start and end character indices (0-based, inclusive start, exclusive end) — indices are relative to the CORRECTED sentence
-  - The grammatical function (e.g., "subject", "main verb", "direct object", "adverbial of time")
-  - A brief explanation of its role in the sentence
+Step 3 — Vocabulary (above CET-4, ~3500 words): word, IPA, POS, concise definition (1 sentence), usage note, difficulty reason, example sentence, and 2-4 common collocations (e.g. "rain heavily", "breathe heavily").
 
-Layer 3 — Key Vocabulary (focus on words ABOVE CET-4 level):
-- Select words that are above CET-4 level (~3500 common English words). Include academic words, uncommon words, and words commonly confused by English learners.
-- For each word, provide:
-  - The word form as it appears
-  - IPA phonetic transcription
-  - Part of speech
-  - A CONCISE definition (one clear sentence — not a multi-sentence explanation)
-  - A usage note explaining how the word functions in this specific sentence
-  - A difficulty reason explaining why this word is hard or important for English learners
-  - One example sentence that best demonstrates the word's meaning, simple enough for CET-4 level learners
+Step 4 — Structure analysis:
+- clauseConnections: how clauses connect and why
+- tenseLogic: why this tense, what changes with another
+- phraseExplanations: notable phrases/idioms/collocations explained
 
-Layer 4 — Deep Structure Analysis:
-Provide an accessible breakdown of how this sentence is constructed. Write in simple, clear language that a CET-4 level learner can understand.
-- clauseConnections: Explain how the clauses in this sentence connect to each other. What type of connection is it (coordination with "and/but/or", subordination with "because/although/when/that", etc.)? Why does the author connect them this way? What logical relationship does it express?
-- tenseLogic: Explain the tense(s) used in this sentence. Why is this tense chosen? What would change if a different tense were used? Keep the explanation simple and practical.
-- phraseExplanations: Identify any notable phrases, idioms, fixed collocations, or phrasal verbs. Explain what they mean and how they work in this sentence.
+Step 5 — Paraphrase: one clear rephrasing of the meaning.
 
-Also provide:
-- A list of grammar points worth noting (tenses, voice, mood, notable constructions)
-- The overall meaning of the sentence in one clear paraphrase
+Step 6 — Simplified version: restate the same meaning using simpler vocabulary and shorter structure.
 
-Be precise with character indices relative to the corrected sentence. Do not skip any part of the corrected sentence in the phrase-level chunking — every word must belong to exactly one chunk.`;
+Step 7 — Sentence pattern: abstract reusable pattern, e.g. "Although [condition], [S] [V] [O] that [relative clause] [location]".
+
+Step 8 — Sentence skeleton:
+- core: bare subject+verb+object sentence
+- layers: each adds info. Format: {label: "when"/"which"/"where"/"why"/"how"/etc., added: "actual text from sentence", explanation: "what this adds to meaning"}
+Example for "Although it was raining heavily, she bought a book that I had never seen before at the small bookstore around the corner.":
+  core: "She bought a book."
+  layers: [{label:"when", added:"Although it was raining heavily", explanation:"sets up contrast: despite bad weather"}, {label:"which", added:"that I had never seen before", explanation:"specifies: it was an unfamiliar book"}, {label:"where", added:"at the small bookstore around the corner", explanation:"location detail"}]
+
+Step 9 — Grammar notes: list notable grammar points.`;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -89,7 +75,7 @@ function hasAnalysisResultShape(value: unknown): value is AnalysisResult {
   if (!Array.isArray(value.components)) return false;
   if (!Array.isArray(value.vocabulary)) return false;
   if (!Array.isArray(value.grammarNotes)) return false;
-  if (!value.grammarNotes.every((note) => typeof note === "string")) return false;
+  if (!value.grammarNotes.every((note: unknown) => typeof note === "string")) return false;
   if (typeof value.paraphrase !== "string") return false;
 
   if (!isObject(value.structureAnalysis)) return false;
@@ -100,7 +86,7 @@ function hasAnalysisResultShape(value: unknown): value is AnalysisResult {
   // Keep vocabulary entry shape checks lightweight but strict enough for rendering.
   if (
     !value.vocabulary.every(
-      (v) =>
+      (v: unknown) =>
         isObject(v) &&
         typeof v.word === "string" &&
         typeof v.phonetic === "string" &&
@@ -112,6 +98,15 @@ function hasAnalysisResultShape(value: unknown): value is AnalysisResult {
     )
   ) {
     return false;
+  }
+
+  // New fields are optional for backward compatibility with stored records.
+  if (value.simplifiedVersion !== undefined && typeof value.simplifiedVersion !== "string") return false;
+  if (value.sentencePattern !== undefined && typeof value.sentencePattern !== "string") return false;
+  if (value.sentenceSkeleton !== undefined) {
+    if (!isObject(value.sentenceSkeleton)) return false;
+    if (typeof value.sentenceSkeleton.core !== "string") return false;
+    if (!Array.isArray(value.sentenceSkeleton.layers)) return false;
   }
 
   return true;
@@ -132,7 +127,7 @@ export async function analyzeSentence(
   let response;
   try {
     response = await getOpenAIClient().chat.completions.create({
-      model: "gpt-4o-mini",
+      model: ANALYSIS_MODEL,
       messages: [
         { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
         { role: "user", content: sentence },

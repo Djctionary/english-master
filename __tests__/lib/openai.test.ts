@@ -163,13 +163,13 @@ describe("analyzeSentence (lib/openai.ts)", () => {
 
     const systemPrompt = mockCreate.mock.calls[0][0].messages[0].content;
     expect(systemPrompt).toContain("Step 0");
-    expect(systemPrompt).toContain("Grammar & Spelling Correction");
-    expect(systemPrompt).toContain("Layer 1");
-    expect(systemPrompt).toContain("Layer 2");
-    expect(systemPrompt).toContain("Layer 3");
-    expect(systemPrompt).toContain("Phrase-Level Chunking");
-    expect(systemPrompt).toContain("Key Vocabulary");
-    expect(systemPrompt).toContain("character indices");
+    expect(systemPrompt).toContain("spelling/grammar");
+    expect(systemPrompt).toContain("Step 1");
+    expect(systemPrompt).toContain("Step 2");
+    expect(systemPrompt).toContain("Step 3");
+    expect(systemPrompt).toContain("Phrase-level chunking");
+    expect(systemPrompt).toContain("Vocabulary");
+    expect(systemPrompt).toContain("exact text");
   });
 
   it("should throw an error when OpenAI API call fails", async () => {

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   SentenceRecord,
   GrammarComponent,
   SentenceTag,
   AnalysisResult,
+  SearchResult,
 } from "@/lib/types";
 import SentenceInput from "@/components/SentenceInput";
 import CorrectionComparison from "@/components/CorrectionComparison";
@@ -14,6 +15,8 @@ import DetailView from "@/components/DetailView";
 import AudioPlayer from "@/components/AudioPlayer";
 import SentenceLibrary from "@/components/SentenceLibrary";
 import InlineTagBadge from "@/components/InlineTagBadge";
+
+const PAGE_SIZE = 20;
 
 function isAnalysisResult(value: unknown): value is AnalysisResult {
   if (!value || typeof value !== "object") return false;
@@ -51,13 +54,46 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [, setTagError] = useState<string | null>(null);
 
-  const fetchLibrary = useCallback(async () => {
+  // Search & pagination state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalSentences, setTotalSentences] = useState(0);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(totalSentences / PAGE_SIZE));
+
+  // Collect unique tag types from current page of sentences for the filter dropdown
+  const tagTypes = Array.from(
+    new Set(
+      sentences
+        .map((r) => r.tag?.type)
+        .filter((t): t is string => Boolean(t))
+    )
+  );
+
+  const fetchLibrary = useCallback(async (query = "", tagType = "", page = 1) => {
     setIsLibraryLoading(true);
     try {
-      const res = await fetch("/api/sentences");
+      const params = new URLSearchParams();
+      if (query) params.set("q", query);
+      if (tagType) params.set("tagType", tagType);
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String((page - 1) * PAGE_SIZE));
+
+      const res = await fetch(`/api/sentences?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch sentence library");
-      const data: SentenceRecord[] = await res.json();
-      setSentences(data);
+      const data = await res.json();
+
+      // Handle both paginated {sentences, total} and legacy array responses
+      if (Array.isArray(data)) {
+        setSentences(data);
+        setTotalSentences(data.length);
+      } else {
+        const result = data as SearchResult;
+        setSentences(result.sentences);
+        setTotalSentences(result.total);
+      }
     } catch {
       // Library fetch failure is non-critical; keep existing list
     } finally {
@@ -66,8 +102,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetchLibrary();
-  }, [fetchLibrary]);
+    fetchLibrary(searchQuery, tagFilter, currentPage);
+  }, [fetchLibrary, currentPage, tagFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  // searchQuery is handled via debounce below, not direct dependency
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      fetchLibrary(query, tagFilter, 1);
+    }, 300);
+  }, [fetchLibrary, tagFilter]);
+
+  const handleTagFilterChange = useCallback((tagType: string) => {
+    setTagFilter(tagType);
+    setCurrentPage(1);
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
 
   const upsertRecord = useCallback((nextRecord: SentenceRecord) => {
     setSentences((prev) => {
@@ -203,6 +258,7 @@ export default function Home() {
       }
 
       setSentences((prev) => prev.filter((item) => item.id !== record.id));
+      setTotalSentences((prev) => Math.max(0, prev - 1));
       if (currentAnalysis?.id === record.id) {
         setCurrentAnalysis(null);
         setSelectedComponent(null);
@@ -221,6 +277,7 @@ export default function Home() {
 
   return (
     <div
+      className="page-container"
       style={{
         maxWidth: "1100px",
         margin: "0 auto",
@@ -310,7 +367,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Two-column analysis section */}
+          {/* Analysis details */}
           <DetailView analysis={renderableAnalysis} selectedComponent={selectedComponent} />
         </section>
       )}
@@ -392,6 +449,14 @@ export default function Home() {
             deletingId={deletingId}
             selectedId={currentAnalysis?.id ?? null}
             isLoading={isLibraryLoading}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            tagTypes={tagTypes}
+            selectedTagType={tagFilter}
+            onTagFilterChange={handleTagFilterChange}
           />
         </div>
       </section>
