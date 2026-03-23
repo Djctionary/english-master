@@ -139,6 +139,46 @@ export interface SentenceTag {
   name: string;
 }
 
+export type ReviewResult = "full" | "partial" | "missed";
+
+export interface ListeningHighlight {
+  /** Stable visual type for lightweight review hints */
+  kind: "pronunciation" | "chunk" | "tip";
+  /** Short label shown above the content */
+  label: string;
+  /** The main text to focus on */
+  text: string;
+  /** Optional supporting note */
+  note?: string;
+}
+
+export interface SentenceReviewState {
+  /** Learner/account owner for this review record */
+  learnerId: string;
+  /** Review stage in the spaced-repetition ladder */
+  stage: number;
+  /** Next time this sentence becomes due */
+  nextReviewAt: string;
+  /** Last completed review timestamp */
+  lastReviewedAt: string | null;
+  /** Last self-reported listening result */
+  lastResult: ReviewResult | null;
+}
+
+export interface ReviewQueueItem {
+  sentence: SentenceRecord;
+  reviewState: SentenceReviewState;
+  listeningHighlights: ListeningHighlight[];
+}
+
+export interface ReviewQueueResult {
+  learnerId: string;
+  items: ReviewQueueItem[];
+  dueCount: number;
+  reviewableCount: number;
+  skippedNoAudioCount: number;
+}
+
 /**
  * A complete sentence record stored in the database.
  */

@@ -55,15 +55,10 @@ export default function SentenceInput({
         <button
           type="submit"
           disabled={isLoading}
+          className="ui-button"
           style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            borderRadius: "6px",
-            border: "none",
-            backgroundColor: isLoading ? "#9CA3AF" : "#3B82F6",
-            color: "#fff",
-            cursor: isLoading ? "not-allowed" : "pointer",
             alignSelf: "flex-start",
+            fontSize: "15px",
           }}
         >
           {isLoading ? "Analyzing..." : "Analyze"}

@@ -1,9 +1,24 @@
-import type { AnalysisResult, SentenceRecord, SentenceTag, SearchOptions, SearchResult } from "@/lib/types";
+import {
+  DEFAULT_LEARNER_ID,
+  buildListeningHighlights,
+  getNextReviewStage,
+  scheduleNextReviewAt,
+} from "@/lib/review";
+import type {
+  AnalysisResult,
+  ReviewQueueItem,
+  ReviewQueueResult,
+  ReviewResult,
+  SentenceRecord,
+  SentenceReviewState,
+  SentenceTag,
+  SearchOptions,
+  SearchResult,
+} from "@/lib/types";
 import * as sqliteDb from "@/lib/db";
 import { Pool } from "pg";
 
 type Provider = "sqlite" | "postgres";
-
 type PgPool = Pool;
 
 type PostgresSentenceRow = {
@@ -16,6 +31,19 @@ type PostgresSentenceRow = {
   tag_name: string | null;
   created_at: string | Date;
 };
+
+type PostgresReviewStateRow = {
+  learner_id: string;
+  stage: number;
+  next_review_at: string | Date;
+  last_reviewed_at: string | Date | null;
+  last_result: ReviewResult | null;
+};
+
+type PostgresReviewQueueRow = PostgresSentenceRow &
+  PostgresReviewStateRow & {
+    sentence_id: number;
+  };
 
 let postgresPool: PgPool | null = null;
 let postgresInitPromise: Promise<void> | null = null;
@@ -52,7 +80,8 @@ function getPostgresPool(): PgPool {
   return postgresPool;
 }
 
-function normalizeCreatedAt(value: string | Date): string {
+function normalizeTimestamp(value: string | Date | null): string | null {
+  if (value === null) return null;
   if (value instanceof Date) {
     return value.toISOString();
   }
@@ -83,8 +112,73 @@ function toSentenceRecord(row: PostgresSentenceRow): SentenceRecord {
       row.tag_type && row.tag_name
         ? { type: row.tag_type, name: row.tag_name }
         : null,
-    createdAt: normalizeCreatedAt(row.created_at),
+    createdAt: normalizeTimestamp(row.created_at) ?? new Date().toISOString(),
   };
+}
+
+function toReviewState(row: PostgresReviewStateRow): SentenceReviewState {
+  return {
+    learnerId: row.learner_id,
+    stage: Number(row.stage),
+    nextReviewAt: normalizeTimestamp(row.next_review_at) ?? new Date().toISOString(),
+    lastReviewedAt: normalizeTimestamp(row.last_reviewed_at),
+    lastResult: row.last_result,
+  };
+}
+
+function toReviewQueueItem(row: PostgresReviewQueueRow): ReviewQueueItem {
+  const sentence = toSentenceRecord(row);
+  return {
+    sentence,
+    reviewState: toReviewState(row),
+    listeningHighlights: buildListeningHighlights(sentence.analysis),
+  };
+}
+
+async function ensurePostgresReviewState(
+  pool: PgPool,
+  sentenceId: number,
+  createdAt: string,
+  learnerId = DEFAULT_LEARNER_ID
+): Promise<void> {
+  const nextReviewAt = scheduleNextReviewAt(1, createdAt);
+
+  await pool.query(
+    `
+      INSERT INTO sentence_review_states (
+        sentence_id,
+        learner_id,
+        stage,
+        next_review_at,
+        last_reviewed_at,
+        last_result,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, 1, $3, NULL, NULL, $4, $4)
+      ON CONFLICT (sentence_id, learner_id) DO NOTHING
+    `,
+    [sentenceId, learnerId, nextReviewAt, createdAt]
+  );
+}
+
+async function getPostgresReviewState(
+  pool: PgPool,
+  sentenceId: number,
+  learnerId = DEFAULT_LEARNER_ID
+): Promise<SentenceReviewState | undefined> {
+  const result = await pool.query<PostgresReviewStateRow>(
+    `
+      SELECT learner_id, stage, next_review_at, last_reviewed_at, last_result
+      FROM sentence_review_states
+      WHERE sentence_id = $1 AND learner_id = $2
+      LIMIT 1
+    `,
+    [sentenceId, learnerId]
+  );
+
+  if (result.rows.length === 0) return undefined;
+  return toReviewState(result.rows[0]);
 }
 
 async function initPostgresSchema(): Promise<void> {
@@ -124,6 +218,43 @@ async function initPostgresSchema(): Promise<void> {
     await pool.query(
       `UPDATE sentences SET tag_type = NULL, tag_name = NULL WHERE tag_type IS NULL OR tag_name IS NULL`
     );
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sentence_review_states (
+        sentence_id INTEGER NOT NULL REFERENCES sentences(id) ON DELETE CASCADE,
+        learner_id TEXT NOT NULL,
+        stage INTEGER NOT NULL DEFAULT 1,
+        next_review_at TIMESTAMPTZ NOT NULL,
+        last_reviewed_at TIMESTAMPTZ,
+        last_result TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (sentence_id, learner_id)
+      );
+    `);
+
+    const now = new Date().toISOString();
+    await pool.query(
+      `
+        INSERT INTO sentence_review_states (
+          sentence_id,
+          learner_id,
+          stage,
+          next_review_at,
+          last_reviewed_at,
+          last_result,
+          created_at,
+          updated_at
+        )
+        SELECT s.id, $1, 1, $2, NULL, NULL, $2, $2
+        FROM sentences s
+        LEFT JOIN sentence_review_states rs
+          ON rs.sentence_id = s.id
+         AND rs.learner_id = $1
+        WHERE rs.sentence_id IS NULL
+      `,
+      [DEFAULT_LEARNER_ID, now]
+    );
   })();
 
   try {
@@ -150,10 +281,12 @@ export async function findSentenceByText(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-       FROM sentences
-       WHERE sentence = $1
-       LIMIT 1`,
+      `
+        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+        FROM sentences
+        WHERE sentence = $1
+        LIMIT 1
+      `,
       [sentence]
     );
 
@@ -171,9 +304,11 @@ export async function insertSentence(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at`,
+      `
+        INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+      `,
       [
         record.sentence,
         record.correctedSentence,
@@ -185,7 +320,9 @@ export async function insertSentence(
       ]
     );
 
-    return toSentenceRecord(result.rows[0]);
+    const saved = toSentenceRecord(result.rows[0]);
+    await ensurePostgresReviewState(pool, saved.id, saved.createdAt);
+    return saved;
   }
 
   return sqliteDb.insertSentence(record);
@@ -196,9 +333,11 @@ export async function getAllSentences(): Promise<SentenceRecord[]> {
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-       FROM sentences
-       ORDER BY created_at DESC, id DESC`
+      `
+        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+        FROM sentences
+        ORDER BY created_at DESC, id DESC
+      `
     );
 
     return result.rows.map(toSentenceRecord);
@@ -214,10 +353,12 @@ export async function getSentenceById(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-       FROM sentences
-       WHERE id = $1
-       LIMIT 1`,
+      `
+        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+        FROM sentences
+        WHERE id = $1
+        LIMIT 1
+      `,
       [id]
     );
 
@@ -235,10 +376,12 @@ export async function getSentenceByAudioFilename(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-       FROM sentences
-       WHERE audio_filename = $1
-       LIMIT 1`,
+      `
+        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+        FROM sentences
+        WHERE audio_filename = $1
+        LIMIT 1
+      `,
       [audioFilename]
     );
 
@@ -257,10 +400,12 @@ export async function updateSentenceTag(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `UPDATE sentences
-       SET tag_type = $1, tag_name = $2
-       WHERE id = $3
-       RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at`,
+      `
+        UPDATE sentences
+        SET tag_type = $1, tag_name = $2
+        WHERE id = $3
+        RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+      `,
       [tag?.type ?? null, tag?.name ?? null, id]
     );
 
@@ -283,10 +428,12 @@ export async function updateSentenceAnalysis(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
-      `UPDATE sentences
-       SET corrected_sentence = $1, analysis = $2, audio_filename = $3
-       WHERE id = $4
-       RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at`,
+      `
+        UPDATE sentences
+        SET corrected_sentence = $1, analysis = $2, audio_filename = $3
+        WHERE id = $4
+        RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+      `,
       [
         payload.correctedSentence,
         JSON.stringify(payload.analysis),
@@ -309,7 +456,6 @@ export async function searchSentences(
     await initPostgresSchema();
     const pool = getPostgresPool();
     const { query, tagType, tagName, limit = 20, offset = 0 } = options;
-
     const conditions: string[] = [];
     const params: unknown[] = [];
     let paramIdx = 1;
@@ -336,10 +482,13 @@ export async function searchSentences(
     const total = parseInt(countResult.rows[0].count, 10);
 
     const dataResult = await pool.query<PostgresSentenceRow>(
-      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-       FROM sentences ${where}
-       ORDER BY created_at DESC, id DESC
-       LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+      `
+        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+        FROM sentences
+        ${where}
+        ORDER BY created_at DESC, id DESC
+        LIMIT $${paramIdx++} OFFSET $${paramIdx++}
+      `,
       [...params, limit, offset]
     );
 
@@ -352,16 +501,154 @@ export async function searchSentences(
   return sqliteDb.searchSentences(options);
 }
 
+export async function getReviewQueue(options?: {
+  learnerId?: string;
+  limit?: number;
+  now?: string;
+}): Promise<ReviewQueueResult> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+    const limit = options?.limit ?? 10;
+    const now = options?.now ?? new Date().toISOString();
+
+    const [reviewableCountResult, dueCountResult, skippedNoAudioResult, queueResult] =
+      await Promise.all([
+        pool.query<{ count: string }>(
+          `
+            SELECT COUNT(*) as count
+            FROM sentences
+            INNER JOIN sentence_review_states
+              ON sentence_review_states.sentence_id = sentences.id
+             AND sentence_review_states.learner_id = $1
+            WHERE sentences.audio_filename IS NOT NULL
+          `,
+          [learnerId]
+        ),
+        pool.query<{ count: string }>(
+          `
+            SELECT COUNT(*) as count
+            FROM sentences
+            INNER JOIN sentence_review_states
+              ON sentence_review_states.sentence_id = sentences.id
+             AND sentence_review_states.learner_id = $1
+            WHERE sentences.audio_filename IS NOT NULL
+              AND sentence_review_states.next_review_at <= $2
+          `,
+          [learnerId, now]
+        ),
+        pool.query<{ count: string }>(
+          `
+            SELECT COUNT(*) as count
+            FROM sentences
+            INNER JOIN sentence_review_states
+              ON sentence_review_states.sentence_id = sentences.id
+             AND sentence_review_states.learner_id = $1
+            WHERE sentences.audio_filename IS NULL
+              AND sentence_review_states.next_review_at <= $2
+          `,
+          [learnerId, now]
+        ),
+        pool.query<PostgresReviewQueueRow>(
+          `
+            SELECT
+              sentences.id,
+              sentences.sentence,
+              sentences.corrected_sentence,
+              sentences.analysis,
+              sentences.audio_filename,
+              sentences.tag_type,
+              sentences.tag_name,
+              sentences.created_at,
+              sentence_review_states.sentence_id,
+              sentence_review_states.learner_id,
+              sentence_review_states.stage,
+              sentence_review_states.next_review_at,
+              sentence_review_states.last_reviewed_at,
+              sentence_review_states.last_result
+            FROM sentences
+            INNER JOIN sentence_review_states
+              ON sentence_review_states.sentence_id = sentences.id
+             AND sentence_review_states.learner_id = $1
+            WHERE sentences.audio_filename IS NOT NULL
+              AND sentence_review_states.next_review_at <= $2
+            ORDER BY sentence_review_states.next_review_at ASC, sentences.created_at DESC, sentences.id DESC
+            LIMIT $3
+          `,
+          [learnerId, now, limit]
+        ),
+      ]);
+
+    return {
+      learnerId,
+      items: queueResult.rows.map(toReviewQueueItem),
+      dueCount: parseInt(dueCountResult.rows[0].count, 10),
+      reviewableCount: parseInt(reviewableCountResult.rows[0].count, 10),
+      skippedNoAudioCount: parseInt(skippedNoAudioResult.rows[0].count, 10),
+    };
+  }
+
+  return sqliteDb.getReviewQueue(options);
+}
+
+export async function submitSentenceReview(
+  sentenceId: number,
+  result: ReviewResult,
+  options?: {
+    learnerId?: string;
+    reviewedAt?: string;
+  }
+): Promise<SentenceReviewState | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+    const reviewedAt = options?.reviewedAt ?? new Date().toISOString();
+
+    const sentence = await getSentenceById(sentenceId);
+    if (!sentence) return undefined;
+
+    await ensurePostgresReviewState(pool, sentenceId, sentence.createdAt, learnerId);
+
+    const currentState = await getPostgresReviewState(pool, sentenceId, learnerId);
+    if (!currentState) return undefined;
+
+    const nextStage = getNextReviewStage(currentState.stage, result);
+    const nextReviewAt = scheduleNextReviewAt(nextStage, reviewedAt);
+
+    await pool.query(
+      `
+        UPDATE sentence_review_states
+        SET stage = $1,
+            next_review_at = $2,
+            last_reviewed_at = $3,
+            last_result = $4,
+            updated_at = $3
+        WHERE sentence_id = $5 AND learner_id = $6
+      `,
+      [nextStage, nextReviewAt, reviewedAt, result, sentenceId, learnerId]
+    );
+
+    return getPostgresReviewState(pool, sentenceId, learnerId);
+  }
+
+  return sqliteDb.submitSentenceReview(sentenceId, result, options);
+}
+
 export async function deleteSentenceById(
   id: number
 ): Promise<SentenceRecord | undefined> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
+    await pool.query("DELETE FROM sentence_review_states WHERE sentence_id = $1", [id]);
     const result = await pool.query<PostgresSentenceRow>(
-      `DELETE FROM sentences
-       WHERE id = $1
-       RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at`,
+      `
+        DELETE FROM sentences
+        WHERE id = $1
+        RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
+      `,
       [id]
     );
 
