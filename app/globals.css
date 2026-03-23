@@ -38,6 +38,45 @@ input {
   font-family: inherit;
 }
 
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid #d8c9bd;
+  background-color: #f7efe8;
+  color: #7b5136;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.ui-button.is-active {
+  background-color: #f1e5da;
+  border-color: #cfae96;
+  color: #6c4125;
+}
+
+.ui-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-button:hover:not(:disabled) {
+    background-color: #f3e7dd;
+    border-color: #cfae96;
+    color: #6c4125;
+    transform: translateY(-1px);
+  }
+}
+
 /* Responsive basics */
 @media (max-width: 640px) {
   body {

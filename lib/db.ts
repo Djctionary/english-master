@@ -1,34 +1,70 @@
 import Database from "better-sqlite3";
 import fs from "fs";
-import type { SentenceRecord, AnalysisResult, SentenceTag, SearchOptions, SearchResult } from "./types";
+import {
+  DEFAULT_LEARNER_ID,
+  buildListeningHighlights,
+  getNextReviewStage,
+  scheduleNextReviewAt,
+} from "@/lib/review";
+import type {
+  AnalysisResult,
+  ReviewQueueItem,
+  ReviewQueueResult,
+  ReviewResult,
+  SentenceRecord,
+  SentenceReviewState,
+  SentenceTag,
+  SearchOptions,
+  SearchResult,
+} from "./types";
 import { getDataDir, getDatabasePath } from "./storage-paths";
 
 let db: Database.Database | null = null;
 
-/**
- * Get or create the database instance (singleton).
- */
+type SentenceRow = {
+  id: number;
+  sentence: string;
+  corrected_sentence: string;
+  analysis: string;
+  audio_filename: string | null;
+  tag_type: string | null;
+  tag_name: string | null;
+  created_at: string;
+};
+
+type ReviewStateRow = {
+  learner_id: string;
+  stage: number;
+  next_review_at: string;
+  last_reviewed_at: string | null;
+  last_result: ReviewResult | null;
+};
+
+type ReviewQueueRow = SentenceRow &
+  ReviewStateRow & {
+    sentence_id: number;
+  };
+
+const SENTENCE_SELECT =
+  "id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at";
+
 function getDb(): Database.Database {
   if (!db) {
     const dbDir = getDataDir();
     const dbPath = getDatabasePath();
 
-    // Ensure the data directory exists
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
+
     db = new Database(dbPath);
-    // Enable WAL mode for better concurrent read performance
     db.pragma("journal_mode = WAL");
-    // Create tables on first connection
-    createTables(db);
+    runMigrations(db);
   }
+
   return db;
 }
 
-/**
- * Create the sentences table if it doesn't exist.
- */
 function createTables(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS sentences (
@@ -42,74 +78,117 @@ function createTables(database: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS sentence_review_states (
+      sentence_id INTEGER NOT NULL,
+      learner_id TEXT NOT NULL,
+      stage INTEGER NOT NULL DEFAULT 1,
+      next_review_at TEXT NOT NULL,
+      last_reviewed_at TEXT,
+      last_result TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (sentence_id, learner_id)
+    );
+  `);
 }
 
-/**
- * Initialize the database — ensures the connection is established and tables are created.
- * Can be called explicitly to eagerly initialize, or it will be called lazily on first query.
- * When called after _resetForTesting, creates tables on the provided test database.
- * Requirements: 5.1
- */
-export function initDatabase(): void {
-  const database = db ?? getDb();
+function runMigrations(database: Database.Database): void {
   createTables(database);
   migrateAddCorrectedSentence(database);
   migrateAddTagColumns(database);
+  migrateCreateReviewStateTable(database);
+  migrateBackfillReviewStates(database);
 }
 
-/**
- * Migration: Add corrected_sentence column to existing tables.
- * Uses try/catch because ALTER TABLE will fail if the column already exists, which is fine.
- * Then backfills existing rows by setting corrected_sentence = sentence where it's NULL.
- * Requirements: 2.6
- */
+export function initDatabase(): void {
+  const database = db ?? getDb();
+  runMigrations(database);
+}
+
 function migrateAddCorrectedSentence(database: Database.Database): void {
   try {
-    database.exec(
-      `ALTER TABLE sentences ADD COLUMN corrected_sentence TEXT`
-    );
+    database.exec("ALTER TABLE sentences ADD COLUMN corrected_sentence TEXT");
   } catch {
-    // Column already exists — ignore
+    // Column already exists.
   }
+
   database.exec(
-    `UPDATE sentences SET corrected_sentence = sentence WHERE corrected_sentence IS NULL`
+    "UPDATE sentences SET corrected_sentence = sentence WHERE corrected_sentence IS NULL"
   );
 }
 
-/**
- * Migration: Add optional tag_type/tag_name columns for sentence context tags.
- * Ensures partial tag rows are normalized to NULL for both columns.
- */
 function migrateAddTagColumns(database: Database.Database): void {
   try {
-    database.exec(`ALTER TABLE sentences ADD COLUMN tag_type TEXT`);
+    database.exec("ALTER TABLE sentences ADD COLUMN tag_type TEXT");
   } catch {
-    // Column already exists — ignore
+    // Column already exists.
   }
+
   try {
-    database.exec(`ALTER TABLE sentences ADD COLUMN tag_name TEXT`);
+    database.exec("ALTER TABLE sentences ADD COLUMN tag_name TEXT");
   } catch {
-    // Column already exists — ignore
+    // Column already exists.
   }
+
   database.exec(
-    `UPDATE sentences SET tag_type = NULL, tag_name = NULL WHERE tag_type IS NULL OR tag_name IS NULL`
+    "UPDATE sentences SET tag_type = NULL, tag_name = NULL WHERE tag_type IS NULL OR tag_name IS NULL"
   );
 }
 
-/**
- * Parse a raw database row into a SentenceRecord, converting the JSON analysis string
- * back into an AnalysisResult object.
- */
-function rowToSentenceRecord(row: {
-  id: number;
-  sentence: string;
-  corrected_sentence: string;
-  analysis: string;
-  audio_filename: string | null;
-  tag_type: string | null;
-  tag_name: string | null;
-  created_at: string;
-}): SentenceRecord {
+function migrateCreateReviewStateTable(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS sentence_review_states (
+      sentence_id INTEGER NOT NULL,
+      learner_id TEXT NOT NULL,
+      stage INTEGER NOT NULL DEFAULT 1,
+      next_review_at TEXT NOT NULL,
+      last_reviewed_at TEXT,
+      last_result TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (sentence_id, learner_id)
+    );
+  `);
+}
+
+function migrateBackfillReviewStates(database: Database.Database): void {
+  const now = new Date().toISOString();
+
+  database
+    .prepare(
+      `
+        INSERT INTO sentence_review_states (
+          sentence_id,
+          learner_id,
+          stage,
+          next_review_at,
+          last_reviewed_at,
+          last_result,
+          created_at,
+          updated_at
+        )
+        SELECT
+          sentences.id,
+          ?,
+          1,
+          ?,
+          NULL,
+          NULL,
+          ?,
+          ?
+        FROM sentences
+        LEFT JOIN sentence_review_states
+          ON sentence_review_states.sentence_id = sentences.id
+         AND sentence_review_states.learner_id = ?
+        WHERE sentence_review_states.sentence_id IS NULL
+      `
+    )
+    .run(DEFAULT_LEARNER_ID, now, now, now, DEFAULT_LEARNER_ID);
+}
+
+function rowToSentenceRecord(row: SentenceRow): SentenceRecord {
   let parsedAnalysis: AnalysisResult;
   try {
     parsedAnalysis = JSON.parse(row.analysis) as AnalysisResult;
@@ -133,61 +212,110 @@ function rowToSentenceRecord(row: {
   };
 }
 
-/**
- * Find a sentence record by its exact text content.
- * Used for duplicate detection — if a sentence already exists, return the cached record.
- * Requirements: 5.3
- */
-export function findSentenceByText(
-  sentence: string
-): SentenceRecord | undefined {
+function rowToReviewState(row: ReviewStateRow): SentenceReviewState {
+  return {
+    learnerId: row.learner_id,
+    stage: row.stage,
+    nextReviewAt: row.next_review_at,
+    lastReviewedAt: row.last_reviewed_at,
+    lastResult: row.last_result,
+  };
+}
+
+function rowToReviewQueueItem(row: ReviewQueueRow): ReviewQueueItem {
+  const sentence = rowToSentenceRecord(row);
+  return {
+    sentence,
+    reviewState: rowToReviewState(row),
+    listeningHighlights: buildListeningHighlights(sentence.analysis),
+  };
+}
+
+function ensureReviewStateExists(
+  database: Database.Database,
+  sentenceId: number,
+  createdAt: string,
+  learnerId = DEFAULT_LEARNER_ID
+): void {
+  const nextReviewAt = scheduleNextReviewAt(1, createdAt);
+  database
+    .prepare(
+      `
+        INSERT OR IGNORE INTO sentence_review_states (
+          sentence_id,
+          learner_id,
+          stage,
+          next_review_at,
+          last_reviewed_at,
+          last_result,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, 1, ?, NULL, NULL, ?, ?)
+      `
+    )
+    .run(sentenceId, learnerId, nextReviewAt, createdAt, createdAt);
+}
+
+function getSentenceReviewState(
+  sentenceId: number,
+  learnerId = DEFAULT_LEARNER_ID
+): SentenceReviewState | undefined {
   const database = getDb();
   const row = database
     .prepare(
-      "SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE sentence = ?"
+      `
+        SELECT learner_id, stage, next_review_at, last_reviewed_at, last_result
+        FROM sentence_review_states
+        WHERE sentence_id = ? AND learner_id = ?
+      `
     )
-    .get(sentence) as
-    | {
-        id: number;
-        sentence: string;
-        corrected_sentence: string;
-        analysis: string;
-        audio_filename: string | null;
-        tag_type: string | null;
-        tag_name: string | null;
-        created_at: string;
-      }
-    | undefined;
+    .get(sentenceId, learnerId) as ReviewStateRow | undefined;
+
+  if (!row) return undefined;
+  return rowToReviewState(row);
+}
+
+export function findSentenceByText(sentence: string): SentenceRecord | undefined {
+  const database = getDb();
+  const row = database
+    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences WHERE sentence = ?`)
+    .get(sentence) as SentenceRow | undefined;
 
   if (!row) return undefined;
   return rowToSentenceRecord(row);
 }
 
-/**
- * Insert a new sentence record into the database.
- * Accepts a record without the id field (auto-generated by SQLite).
- * Returns the complete SentenceRecord with the assigned id.
- * Requirements: 5.1
- */
-export function insertSentence(
-  record: Omit<SentenceRecord, "id">
-): SentenceRecord {
+export function insertSentence(record: Omit<SentenceRecord, "id">): SentenceRecord {
   const database = getDb();
-  const stmt = database.prepare(
-    "INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  );
-  const result = stmt.run(
-    record.sentence,
-    record.correctedSentence,
-    JSON.stringify(record.analysis),
-    record.audioFilename,
-    record.tag?.type ?? null,
-    record.tag?.name ?? null,
-    record.createdAt
-  );
+  const result = database
+    .prepare(
+      `
+        INSERT INTO sentences (
+          sentence,
+          corrected_sentence,
+          analysis,
+          audio_filename,
+          tag_type,
+          tag_name,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+    .run(
+      record.sentence,
+      record.correctedSentence,
+      JSON.stringify(record.analysis),
+      record.audioFilename,
+      record.tag?.type ?? null,
+      record.tag?.name ?? null,
+      record.createdAt
+    );
+
+  const insertedId = result.lastInsertRowid as number;
+  ensureReviewStateExists(database, insertedId, record.createdAt);
 
   return {
-    id: result.lastInsertRowid as number,
+    id: insertedId,
     sentence: record.sentence,
     correctedSentence: record.correctedSentence,
     analysis: record.analysis,
@@ -197,91 +325,37 @@ export function insertSentence(
   };
 }
 
-/**
- * Retrieve all sentence records, ordered by created_at descending (newest first).
- * Requirements: 5.2, 7.2
- */
 export function getAllSentences(): SentenceRecord[] {
   const database = getDb();
   const rows = database
-    .prepare(
-      "SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences ORDER BY created_at DESC"
-    )
-    .all() as Array<{
-    id: number;
-    sentence: string;
-    corrected_sentence: string;
-    analysis: string;
-    audio_filename: string | null;
-    tag_type: string | null;
-    tag_name: string | null;
-    created_at: string;
-  }>;
+    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences ORDER BY created_at DESC, id DESC`)
+    .all() as SentenceRow[];
 
   return rows.map(rowToSentenceRecord);
 }
 
-/**
- * Retrieve a single sentence record by its id.
- * Returns undefined if no record exists with the given id.
- * Requirements: 7.3
- */
 export function getSentenceById(id: number): SentenceRecord | undefined {
   const database = getDb();
   const row = database
-    .prepare(
-      "SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE id = ?"
-    )
-    .get(id) as
-    | {
-        id: number;
-        sentence: string;
-        corrected_sentence: string;
-        analysis: string;
-        audio_filename: string | null;
-        tag_type: string | null;
-        tag_name: string | null;
-        created_at: string;
-      }
-    | undefined;
+    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences WHERE id = ?`)
+    .get(id) as SentenceRow | undefined;
 
   if (!row) return undefined;
   return rowToSentenceRecord(row);
 }
 
-/**
- * Retrieve a single sentence record by its audio filename.
- * Returns undefined if no record exists with the given filename.
- */
 export function getSentenceByAudioFilename(
   audioFilename: string
 ): SentenceRecord | undefined {
   const database = getDb();
   const row = database
-    .prepare(
-      "SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE audio_filename = ?"
-    )
-    .get(audioFilename) as
-    | {
-        id: number;
-        sentence: string;
-        corrected_sentence: string;
-        analysis: string;
-        audio_filename: string | null;
-        tag_type: string | null;
-        tag_name: string | null;
-        created_at: string;
-      }
-    | undefined;
+    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences WHERE audio_filename = ?`)
+    .get(audioFilename) as SentenceRow | undefined;
 
   if (!row) return undefined;
   return rowToSentenceRecord(row);
 }
 
-/**
- * Update or clear the context tag for a sentence by id.
- * Returns the updated record, or undefined if the id does not exist.
- */
 export function updateSentenceTag(
   id: number,
   tag: SentenceTag | null
@@ -297,10 +371,6 @@ export function updateSentenceTag(
   return getSentenceById(id);
 }
 
-/**
- * Update analysis-related fields for an existing sentence.
- * Returns the updated record, or undefined if the id does not exist.
- */
 export function updateSentenceAnalysis(
   id: number,
   payload: {
@@ -327,13 +397,9 @@ export function updateSentenceAnalysis(
   return getSentenceById(id);
 }
 
-/**
- * Search and paginate sentences with optional text query and tag filters.
- */
 export function searchSentences(options: SearchOptions = {}): SearchResult {
   const database = getDb();
   const { query, tagType, tagName, limit = 20, offset = 0 } = options;
-
   const conditions: string[] = [];
   const params: unknown[] = [];
 
@@ -351,7 +417,6 @@ export function searchSentences(options: SearchOptions = {}): SearchResult {
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
   const countRow = database
     .prepare(`SELECT COUNT(*) as count FROM sentences ${where}`)
     .get(...params) as { count: number };
@@ -359,18 +424,15 @@ export function searchSentences(options: SearchOptions = {}): SearchResult {
 
   const rows = database
     .prepare(
-      `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      `
+        SELECT ${SENTENCE_SELECT}
+        FROM sentences
+        ${where}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
+      `
     )
-    .all(...params, limit, offset) as Array<{
-    id: number;
-    sentence: string;
-    corrected_sentence: string;
-    analysis: string;
-    audio_filename: string | null;
-    tag_type: string | null;
-    tag_name: string | null;
-    created_at: string;
-  }>;
+    .all(...params, limit, offset) as SentenceRow[];
 
   return {
     sentences: rows.map(rowToSentenceRecord),
@@ -378,22 +440,154 @@ export function searchSentences(options: SearchOptions = {}): SearchResult {
   };
 }
 
-/**
- * Delete a sentence record by id.
- * Returns the deleted record, or undefined if the id does not exist.
- */
+export function getReviewQueue(options?: {
+  learnerId?: string;
+  limit?: number;
+  now?: string;
+}): ReviewQueueResult {
+  const database = getDb();
+  const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+  const limit = options?.limit ?? 10;
+  const now = options?.now ?? new Date().toISOString();
+
+  const reviewableCountRow = database
+    .prepare(
+      `
+        SELECT COUNT(*) as count
+        FROM sentences
+        INNER JOIN sentence_review_states
+          ON sentence_review_states.sentence_id = sentences.id
+         AND sentence_review_states.learner_id = ?
+        WHERE sentences.audio_filename IS NOT NULL
+      `
+    )
+    .get(learnerId) as { count: number };
+
+  const dueCountRow = database
+    .prepare(
+      `
+        SELECT COUNT(*) as count
+        FROM sentences
+        INNER JOIN sentence_review_states
+          ON sentence_review_states.sentence_id = sentences.id
+         AND sentence_review_states.learner_id = ?
+        WHERE sentences.audio_filename IS NOT NULL
+          AND sentence_review_states.next_review_at <= ?
+      `
+    )
+    .get(learnerId, now) as { count: number };
+
+  const skippedNoAudioRow = database
+    .prepare(
+      `
+        SELECT COUNT(*) as count
+        FROM sentences
+        INNER JOIN sentence_review_states
+          ON sentence_review_states.sentence_id = sentences.id
+         AND sentence_review_states.learner_id = ?
+        WHERE sentences.audio_filename IS NULL
+          AND sentence_review_states.next_review_at <= ?
+      `
+    )
+    .get(learnerId, now) as { count: number };
+
+  const rows = database
+    .prepare(
+      `
+        SELECT
+          sentences.id,
+          sentences.sentence,
+          sentences.corrected_sentence,
+          sentences.analysis,
+          sentences.audio_filename,
+          sentences.tag_type,
+          sentences.tag_name,
+          sentences.created_at,
+          sentence_review_states.sentence_id,
+          sentence_review_states.learner_id,
+          sentence_review_states.stage,
+          sentence_review_states.next_review_at,
+          sentence_review_states.last_reviewed_at,
+          sentence_review_states.last_result
+        FROM sentences
+        INNER JOIN sentence_review_states
+          ON sentence_review_states.sentence_id = sentences.id
+         AND sentence_review_states.learner_id = ?
+        WHERE sentences.audio_filename IS NOT NULL
+          AND sentence_review_states.next_review_at <= ?
+        ORDER BY sentence_review_states.next_review_at ASC, sentences.created_at DESC, sentences.id DESC
+        LIMIT ?
+      `
+    )
+    .all(learnerId, now, limit) as ReviewQueueRow[];
+
+  return {
+    learnerId,
+    items: rows.map(rowToReviewQueueItem),
+    dueCount: dueCountRow.count,
+    reviewableCount: reviewableCountRow.count,
+    skippedNoAudioCount: skippedNoAudioRow.count,
+  };
+}
+
+export function submitSentenceReview(
+  sentenceId: number,
+  result: ReviewResult,
+  options?: {
+    learnerId?: string;
+    reviewedAt?: string;
+  }
+): SentenceReviewState | undefined {
+  const sentence = getSentenceById(sentenceId);
+  if (!sentence) return undefined;
+
+  const database = getDb();
+  const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+  const reviewedAt = options?.reviewedAt ?? new Date().toISOString();
+
+  ensureReviewStateExists(database, sentenceId, sentence.createdAt, learnerId);
+
+  const currentState = getSentenceReviewState(sentenceId, learnerId);
+  if (!currentState) return undefined;
+
+  const nextStage = getNextReviewStage(currentState.stage, result);
+  const nextReviewAt = scheduleNextReviewAt(nextStage, reviewedAt);
+
+  database
+    .prepare(
+      `
+        UPDATE sentence_review_states
+        SET stage = ?,
+            next_review_at = ?,
+            last_reviewed_at = ?,
+            last_result = ?,
+            updated_at = ?
+        WHERE sentence_id = ? AND learner_id = ?
+      `
+    )
+    .run(
+      nextStage,
+      nextReviewAt,
+      reviewedAt,
+      result,
+      reviewedAt,
+      sentenceId,
+      learnerId
+    );
+
+  return getSentenceReviewState(sentenceId, learnerId);
+}
+
 export function deleteSentenceById(id: number): SentenceRecord | undefined {
   const existing = getSentenceById(id);
   if (!existing) return undefined;
 
   const database = getDb();
+  database.prepare("DELETE FROM sentence_review_states WHERE sentence_id = ?").run(id);
   database.prepare("DELETE FROM sentences WHERE id = ?").run(id);
   return existing;
 }
 
-/**
- * Close the database connection. Useful for testing cleanup.
- */
 export function closeDatabase(): void {
   if (db) {
     db.close();
@@ -401,19 +595,14 @@ export function closeDatabase(): void {
   }
 }
 
-/**
- * Reset the database singleton — used for testing to allow re-initialization
- * with a different database instance (e.g., in-memory).
- * If a testDb is provided, tables are NOT automatically created —
- * call initDatabase() after this to set up the schema.
- */
 export function _resetForTesting(testDb?: Database.Database): void {
   if (db) {
     try {
       db.close();
     } catch {
-      // Ignore close errors during testing
+      // Ignore close errors during testing.
     }
   }
+
   db = testDb ?? null;
 }
