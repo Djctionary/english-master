@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   SentenceRecord,
-  GrammarComponent,
   SentenceTag,
   AnalysisResult,
   SearchResult,
@@ -45,7 +44,6 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
 
 export default function LearnWorkspace() {
   const [currentAnalysis, setCurrentAnalysis] = useState<SentenceRecord | null>(null);
-  const [selectedComponent, setSelectedComponent] = useState<GrammarComponent | null>(null);
   const [sentences, setSentences] = useState<SentenceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -157,7 +155,6 @@ export default function LearnWorkspace() {
     try {
       const record = await requestAnalysis(sentence, false);
       setCurrentAnalysis(record);
-      setSelectedComponent(null);
       setTagError(null);
       upsertRecord(record);
     } catch (err) {
@@ -175,7 +172,6 @@ export default function LearnWorkspace() {
     try {
       const record = await requestAnalysis(currentAnalysis.sentence, true);
       setCurrentAnalysis(record);
-      setSelectedComponent(null);
       setTagError(null);
       upsertRecord(record);
     } catch (err) {
@@ -187,12 +183,7 @@ export default function LearnWorkspace() {
 
   const handleLibrarySelect = (record: SentenceRecord) => {
     setCurrentAnalysis(record);
-    setSelectedComponent(null);
     setTagError(null);
-  };
-
-  const handleComponentClick = (component: GrammarComponent) => {
-    setSelectedComponent(component);
   };
 
   const existingTags: SentenceTag[] = Array.from(
@@ -258,7 +249,6 @@ export default function LearnWorkspace() {
       setTotalSentences((prev) => Math.max(0, prev - 1));
       if (currentAnalysis?.id === record.id) {
         setCurrentAnalysis(null);
-        setSelectedComponent(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete sentence.");
@@ -383,8 +373,6 @@ export default function LearnWorkspace() {
                     components={renderableAnalysis.components}
                     correctedSentence={renderableAnalysis.correctedSentence}
                     vocabularyWords={renderableAnalysis.vocabulary.map((v) => v.word)}
-                    onComponentClick={handleComponentClick}
-                    selectedComponent={selectedComponent}
                   />
                 </div>
                 <InlineTagBadge
@@ -400,7 +388,7 @@ export default function LearnWorkspace() {
               </div>
             </div>
 
-            <DetailView analysis={renderableAnalysis} selectedComponent={selectedComponent} />
+            <DetailView analysis={renderableAnalysis} />
           </section>
         )}
 

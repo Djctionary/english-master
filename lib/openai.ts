@@ -29,7 +29,7 @@ function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
-const ANALYSIS_MODEL = process.env.ANALYSIS_MODEL ?? "gpt-4o-mini";
+const ANALYSIS_MODEL = process.env.ANALYSIS_MODEL ?? "gpt-4.1-mini";
 
 const ANALYSIS_SYSTEM_PROMPT = `Analyze an English sentence for a CET-6 learner. All output in English. Follow the JSON schema exactly.
 
@@ -37,29 +37,24 @@ Step 0 — Correct spelling/grammar only. Keep word choices and structure. List 
 
 Step 1 — Clauses: identify each clause with type and role.
 
-Step 2 — Phrase-level chunking of CORRECTED sentence: exact text (copied verbatim), grammatical role, brief explanation. Cover every word in exactly one chunk.
+Step 2 — Phrase-level chunking of CORRECTED sentence: exact text (copied verbatim), grammatical role. Cover every word in exactly one chunk. Leave description empty string.
 
-Step 3 — Vocabulary (above CET-4, ~3500 words): word, IPA, POS, concise definition (1 sentence), usage note, difficulty reason, example sentence, and 2-4 common collocations (e.g. "rain heavily", "breathe heavily").
+Step 3 — Vocabulary (above CET-4, ~3500 words): word, IPA, POS, concise definition (1 sentence), usage note, example sentence, and 2-4 common collocations (e.g. "rain heavily", "breathe heavily"). Set difficultyReason to empty string.
 
-Step 4 — Structure analysis:
-- clauseConnections: how clauses connect and why
-- tenseLogic: why this tense, what changes with another
-- phraseExplanations: notable phrases/idioms/collocations explained
+Step 4 — Structure analysis: set clauseConnections, tenseLogic, phraseExplanations all to empty string.
 
 Step 5 — Paraphrase: one clear rephrasing of the meaning.
 
-Step 6 — Simplified version: restate the same meaning using simpler vocabulary and shorter structure.
+Step 6 — Sentence pattern: abstract reusable pattern, e.g. "Although [condition], [S] [V] [O] that [relative clause] [location]".
 
-Step 7 — Sentence pattern: abstract reusable pattern, e.g. "Although [condition], [S] [V] [O] that [relative clause] [location]".
-
-Step 8 — Sentence skeleton:
+Step 7 — Sentence skeleton:
 - core: bare subject+verb+object sentence
 - layers: each adds info. Format: {label: "when"/"which"/"where"/"why"/"how"/etc., added: "actual text from sentence", explanation: "what this adds to meaning"}
 Example for "Although it was raining heavily, she bought a book that I had never seen before at the small bookstore around the corner.":
   core: "She bought a book."
   layers: [{label:"when", added:"Although it was raining heavily", explanation:"sets up contrast: despite bad weather"}, {label:"which", added:"that I had never seen before", explanation:"specifies: it was an unfamiliar book"}, {label:"where", added:"at the small bookstore around the corner", explanation:"location detail"}]
 
-Step 9 — Grammar notes: list notable grammar points.`;
+Step 8 — Grammar notes: return empty array.`;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -191,19 +186,19 @@ export function generateAudioFilename(sentence: string): string {
 }
 
 /**
- * Generates audio for an English sentence using OpenAI TTS API.
+ * Generates audio for an English sentence using ElevenLabs TTS API (Turbo v2.5).
  * Uses SHA-256 hash-based filename and caches audio files to avoid regeneration.
  *
  * @param sentence - The English sentence to generate audio for
  * @returns The audio filename (e.g., "a1b2c3d4e5f6g7h8.mp3")
- * @throws Error if the OpenAI TTS API call fails or audio cannot be saved
+ * @throws Error if the ElevenLabs TTS API call fails or audio cannot be saved
  */
 export async function generateAudio(sentence: string): Promise<string> {
   const audioDir = getAudioDir();
   const filename = generateAudioFilename(sentence);
   const filepath = path.join(audioDir, filename);
 
-  // Reuse existing audio file if it already exists (Requirement 3.3)
+  // Reuse existing audio file if it already exists
   if (fs.existsSync(filepath)) {
     return filename;
   }
@@ -213,14 +208,39 @@ export async function generateAudio(sentence: string): Promise<string> {
     fs.mkdirSync(audioDir, { recursive: true });
   }
 
-  // Call OpenAI TTS API (Requirement 3.1)
-  const response = await getOpenAIClient().audio.speech.create({
-    model: "tts-1",
-    voice: "alloy",
-    input: sentence,
-  });
+  const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+  if (!elevenLabsKey) {
+    throw new Error("ELEVENLABS_API_KEY is missing");
+  }
 
-  // Convert response to Buffer and save to filesystem (Requirement 3.2)
+  // Use "Rachel" voice — natural conversational English, fast with Turbo v2.5
+  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
+
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": elevenLabsKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: sentence,
+        model_id: "eleven_turbo_v2_5",
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+          style: 0.3,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "unknown");
+    throw new Error(`ElevenLabs TTS failed (${response.status}): ${errText}`);
+  }
+
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   fs.writeFileSync(filepath, buffer);

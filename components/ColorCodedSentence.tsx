@@ -73,16 +73,12 @@ export interface ColorCodedSentenceProps {
   components: GrammarComponent[];
   correctedSentence: string;
   vocabularyWords?: string[];
-  onComponentClick?: (component: GrammarComponent) => void;
-  selectedComponent?: GrammarComponent | null;
 }
 
 export default function ColorCodedSentence({
   components,
   correctedSentence,
   vocabularyWords,
-  onComponentClick,
-  selectedComponent,
 }: ColorCodedSentenceProps) {
   function containsVocabularyWord(text: string): boolean {
     if (!vocabularyWords || vocabularyWords.length === 0) return false;
@@ -110,34 +106,17 @@ export default function ColorCodedSentence({
       );
     }
 
-    // Render the component span using correctedSentence slice
+    // Render the component span — colors only, non-interactive
     const compText = correctedSentence.slice(effectiveStart, end);
     const roleInfo = ROLE_COLORS[comp.role] ?? DEFAULT_ROLE;
-    const isSelected =
-      selectedComponent != null &&
-      selectedComponent.text === comp.text &&
-      selectedComponent.role === comp.role;
     const isVocab = containsVocabularyWord(compText);
 
     spans.push(
       <span
         key={`comp-${start}-${end}`}
-        onClick={() => onComponentClick?.(comp)}
-        role="button"
-        tabIndex={0}
-        aria-label={`${compText} - ${roleInfo.label}`}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onComponentClick?.(comp);
-          }
-        }}
-        title={roleInfo.label}
         style={{
           color: roleInfo.color,
-          cursor: onComponentClick ? "pointer" : "default",
-          fontWeight: isSelected ? 700 : 500,
-          textDecoration: isSelected ? "underline" : "none",
+          fontWeight: 500,
           borderRadius: "3px",
           padding: "2px 0",
           position: "relative",
