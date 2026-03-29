@@ -213,8 +213,8 @@ export async function generateAudio(sentence: string): Promise<string> {
     throw new Error("ELEVENLABS_API_KEY is missing");
   }
 
-  // Use "Rachel" voice — natural conversational English, fast with Turbo v2.5
-  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
+  // Use "Sarah" voice — mature, confident, natural conversational English
+  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "EXAVITQu4vr4xnSDxMaL";
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
