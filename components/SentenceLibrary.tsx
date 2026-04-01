@@ -6,29 +6,25 @@ export interface SentenceLibraryProps {
   sentences: SentenceRecord[];
   onSelect: (record: SentenceRecord) => void;
   onDelete?: (record: SentenceRecord) => void;
-  deletingId?: number | null;
-  selectedId?: number | null;
-  isLoading?: boolean;
-  // Pagination
-  currentPage?: number;
-  totalPages?: number;
+  deletingId: number | null;
+  selectedId: number | null;
+  isLoading: boolean;
+  currentPage: number;
+  totalPages: number;
   onPageChange?: (page: number) => void;
-  // Search
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
-  // Tag filter
-  tagTypes?: string[];
-  selectedTagType?: string;
-  onTagFilterChange?: (tagType: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  tagTypes: string[];
+  selectedTagType: string;
+  onTagFilterChange: (tagType: string) => void;
 }
 
 function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString("en-US", {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-    year: "numeric",
-    hour: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
   });
 }
@@ -40,77 +36,81 @@ export default function SentenceLibrary({
   deletingId,
   selectedId,
   isLoading,
-  currentPage = 1,
-  totalPages = 1,
+  currentPage,
+  totalPages,
   onPageChange,
-  searchQuery = "",
+  searchQuery,
   onSearchChange,
-  tagTypes = [],
-  selectedTagType = "",
+  tagTypes,
+  selectedTagType,
   onTagFilterChange,
 }: SentenceLibraryProps) {
   return (
-    <div>
-      {/* Search & Filter Bar */}
-      {(onSearchChange || onTagFilterChange) && (
-        <div
+    <div aria-label="Sentence library">
+      {/* Search & filter bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: "var(--space-sm)",
+          padding: "var(--space-md) var(--space-lg)",
+          borderBottom: "1px solid var(--color-border)",
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="search"
+          placeholder="Search sentences..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          aria-label="Search sentences"
+          className="input-base"
           style={{
-            display: "flex",
-            gap: "8px",
-            padding: "10px 12px",
-            borderBottom: "1px solid #E5E7EB",
-            flexWrap: "wrap",
+            flex: 1,
+            minWidth: "160px",
+            padding: "var(--space-sm) var(--space-md)",
+            fontSize: "var(--text-small)",
           }}
-        >
-          {onSearchChange && (
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search sentences..."
-              aria-label="Search sentences"
-              style={{
-                flex: "1 1 200px",
-                padding: "6px 10px",
-                fontSize: "13px",
-                border: "1px solid #D1D5DB",
-                borderRadius: "6px",
-                outline: "none",
-                minWidth: "0",
-              }}
-            />
-          )}
-          {onTagFilterChange && tagTypes.length > 0 && (
-            <select
-              value={selectedTagType}
-              onChange={(e) => onTagFilterChange(e.target.value)}
-              aria-label="Filter by tag type"
-              style={{
-                padding: "6px 10px",
-                fontSize: "13px",
-                border: "1px solid #D1D5DB",
-                borderRadius: "6px",
-                backgroundColor: "#FFFFFF",
-                cursor: "pointer",
-              }}
-            >
-              <option value="">All tags</option>
-              {tagTypes.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
+        />
+        {tagTypes.length > 0 && (
+          <select
+            value={selectedTagType}
+            onChange={(e) => onTagFilterChange(e.target.value)}
+            aria-label="Filter by tag type"
+            className="input-base"
+            style={{
+              width: "auto",
+              minWidth: "120px",
+              padding: "var(--space-sm) var(--space-md)",
+              fontSize: "var(--text-small)",
+              appearance: "none",
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 10px center",
+              paddingRight: "32px",
+              cursor: "pointer",
+            }}
+          >
+            <option value="">All tags</option>
+            {tagTypes.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
 
       {/* Loading state */}
       {isLoading && (
         <div
-          style={{ padding: "24px", textAlign: "center", color: "#6B7280" }}
-          aria-label="Loading sentence library"
-          role="status"
+          style={{
+            padding: "var(--space-xl)",
+            textAlign: "center",
+            color: "var(--color-text-muted)",
+            fontSize: "var(--text-small)",
+          }}
         >
-          Loading sentences...
+          Loading...
         </div>
       )}
 
@@ -118,21 +118,15 @@ export default function SentenceLibrary({
       {!isLoading && sentences.length === 0 && (
         <div
           style={{
-            padding: "32px 24px",
+            padding: "var(--space-2xl) var(--space-xl)",
             textAlign: "center",
-            color: "#6B7280",
-            fontSize: "15px",
+            color: "var(--color-text-muted)",
+            fontSize: "var(--text-small)",
           }}
-          aria-label="Empty sentence library"
         >
-          <p style={{ margin: "0 0 8px 0", fontWeight: 500, color: "#374151" }}>
-            {searchQuery || selectedTagType ? "No matching sentences" : "No sentences yet"}
-          </p>
-          <p style={{ margin: 0 }}>
-            {searchQuery || selectedTagType
-              ? "Try a different search or filter."
-              : "Enter an English sentence above to start building your library."}
-          </p>
+          {searchQuery
+            ? "No sentences match your search."
+            : "No sentences yet. Analyze one above to get started."}
         </div>
       )}
 
@@ -151,7 +145,7 @@ export default function SentenceLibrary({
                   style={{
                     display: "flex",
                     alignItems: "stretch",
-                    borderBottom: "1px solid #E5E7EB",
+                    borderBottom: "1px solid var(--color-border)",
                   }}
                 >
                   <button
@@ -160,20 +154,24 @@ export default function SentenceLibrary({
                     style={{
                       display: "block",
                       flex: 1,
+                      minWidth: 0,
                       textAlign: "left",
-                      padding: "12px 16px",
+                      padding: "var(--space-md) var(--space-lg)",
                       border: "none",
-                      backgroundColor: isSelected ? "#EFF6FF" : "transparent",
+                      backgroundColor: isSelected
+                        ? "var(--color-primary-light)"
+                        : "transparent",
                       cursor: "pointer",
-                      fontSize: "14px",
-                      color: "#1F2937",
+                      fontSize: "var(--text-small)",
+                      color: "var(--color-text)",
                       minHeight: "48px",
+                      transition: "background-color var(--transition-fast)",
                     }}
                   >
                     <div
                       style={{
                         fontWeight: isSelected ? 600 : 400,
-                        marginBottom: "4px",
+                        marginBottom: "var(--space-xs)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -181,11 +179,22 @@ export default function SentenceLibrary({
                     >
                       {record.sentence}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                    <div
+                      style={{
+                        fontSize: "var(--text-caption)",
+                        color: "var(--color-text-muted)",
+                      }}
+                    >
                       {formatTimestamp(record.createdAt)}
                     </div>
                     {record.tag && (
-                      <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
+                      <div
+                        style={{
+                          fontSize: "var(--text-caption)",
+                          color: "var(--color-text-secondary)",
+                          marginTop: "2px",
+                        }}
+                      >
                         {record.tag.type}: {record.tag.name}
                       </div>
                     )}
@@ -199,13 +208,14 @@ export default function SentenceLibrary({
                       title="Delete sentence"
                       style={{
                         border: "none",
-                        borderLeft: "1px solid #E5E7EB",
-                        backgroundColor: "#FFFFFF",
-                        color: "#B91C1C",
+                        borderLeft: "1px solid var(--color-border)",
+                        backgroundColor: "var(--color-surface)",
+                        color: "var(--color-error)",
                         width: "44px",
                         minWidth: "44px",
                         cursor: isDeleting ? "not-allowed" : "pointer",
                         fontSize: "15px",
+                        transition: "background-color var(--transition-fast)",
                       }}
                     >
                       {isDeleting ? "\u2026" : "\u00D7"}
@@ -225,45 +235,33 @@ export default function SentenceLibrary({
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            gap: "12px",
-            padding: "10px 12px",
-            borderTop: "1px solid #E5E7EB",
-            fontSize: "13px",
-            color: "#4B5563",
+            gap: "var(--space-md)",
+            padding: "var(--space-md) var(--space-lg)",
           }}
         >
           <button
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage <= 1}
-            style={{
-              padding: "4px 10px",
-              border: "1px solid #D1D5DB",
-              borderRadius: "4px",
-              backgroundColor: currentPage <= 1 ? "#F3F4F6" : "#FFFFFF",
-              cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-              color: currentPage <= 1 ? "#9CA3AF" : "#374151",
-              fontSize: "13px",
-            }}
+            className="btn-secondary"
+            style={{ padding: "var(--space-xs) var(--space-md)" }}
           >
             Prev
           </button>
-          <span>
-            Page {currentPage} of {totalPages}
+          <span
+            style={{
+              fontSize: "var(--text-small)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            {currentPage} / {totalPages}
           </span>
           <button
             type="button"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage >= totalPages}
-            style={{
-              padding: "4px 10px",
-              border: "1px solid #D1D5DB",
-              borderRadius: "4px",
-              backgroundColor: currentPage >= totalPages ? "#F3F4F6" : "#FFFFFF",
-              cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
-              color: currentPage >= totalPages ? "#9CA3AF" : "#374151",
-              fontSize: "13px",
-            }}
+            className="btn-secondary"
+            style={{ padding: "var(--space-xs) var(--space-md)" }}
           >
             Next
           </button>

@@ -15,6 +15,7 @@ import DetailView from "@/components/DetailView";
 import AudioPlayer from "@/components/AudioPlayer";
 import SentenceLibrary from "@/components/SentenceLibrary";
 import InlineTagBadge from "@/components/InlineTagBadge";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const PAGE_SIZE = 20;
 
@@ -50,6 +51,7 @@ export default function LearnWorkspace() {
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [isTagSaving, setIsTagSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SentenceRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, setTagError] = useState<string | null>(null);
 
@@ -227,11 +229,14 @@ export default function LearnWorkspace() {
     }
   };
 
-  const handleDeleteSentence = async (record: SentenceRecord) => {
-    const confirmed = window.confirm(
-      "Delete this sentence from history? This cannot be undone."
-    );
-    if (!confirmed) return;
+  const handleDeleteSentence = (record: SentenceRecord) => {
+    setPendingDelete(record);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const record = pendingDelete;
+    setPendingDelete(null);
 
     setDeletingId(record.id);
     setError(null);
@@ -267,9 +272,8 @@ export default function LearnWorkspace() {
       className="page-container"
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f7f3ee 0%, #f6f7f8 48%, #f2f5f7 100%)",
-        padding: "32px 18px 48px",
+        backgroundColor: "var(--color-bg)",
+        padding: "var(--space-2xl) var(--space-lg) var(--space-3xl)",
       }}
     >
       <div
@@ -277,54 +281,34 @@ export default function LearnWorkspace() {
           maxWidth: "1120px",
           margin: "0 auto",
           display: "grid",
-          gap: "20px",
-          color: "#20303b",
+          gap: "var(--space-xl)",
         }}
       >
+        {/* Header */}
         <section
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
-            gap: "16px",
+            gap: "var(--space-lg)",
             flexWrap: "wrap",
           }}
         >
-          <div style={{ display: "grid", gap: "8px" }}>
-            <span
-              style={{
-                fontSize: "12px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "#8f6b4e",
-                fontWeight: 700,
-              }}
-            >
-              Learn
-            </span>
+          <div>
+            <span className="section-label">Learn</span>
             <h1
               style={{
-                fontSize: "clamp(2rem, 5vw, 3.3rem)",
-                lineHeight: 1.03,
-                color: "#1d2d39",
-                maxWidth: "10ch",
+                fontSize: "var(--text-display)",
+                lineHeight: "var(--leading-tight)",
+                color: "var(--color-text)",
+                margin: "var(--space-xs) 0 0",
               }}
             >
-              Build your sentence library.
+              Analyze & collect.
             </h1>
-            <p style={{ maxWidth: "60ch", color: "#596d7c" }}>
-              Analyze, store, and revisit sentences in one calm workspace. Learn
-              and review now share the same simple visual system.
-            </p>
           </div>
 
-          <nav
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
+          <nav style={{ display: "flex", gap: "var(--space-sm)" }}>
             <Link href="/learn" className="ui-button is-active">
               Learn
             </Link>
@@ -334,30 +318,16 @@ export default function LearnWorkspace() {
           </nav>
         </section>
 
-        <section
-          style={{
-            borderRadius: "24px",
-            border: "1px solid rgba(215, 222, 229, 0.95)",
-            backgroundColor: "rgba(255,255,255,0.84)",
-            padding: "18px",
-            boxShadow: "0 18px 45px rgba(25, 49, 69, 0.08)",
-          }}
-        >
+        {/* Input card */}
+        <section className="card" style={{ padding: "var(--space-lg)" }}>
           <SentenceInput onSubmit={handleSubmit} isLoading={isLoading} error={error} />
         </section>
 
+        {/* Analysis result */}
         {currentAnalysis && renderableAnalysis && (
-          <section
-            style={{
-              borderRadius: "24px",
-              backgroundColor: "rgba(255,255,255,0.84)",
-              boxShadow: "0 18px 45px rgba(25, 49, 69, 0.08)",
-              border: "1px solid rgba(215, 222, 229, 0.95)",
-              overflow: "hidden",
-            }}
-          >
+          <section className="card" style={{ overflow: "hidden" }}>
             {renderableAnalysis.corrections.length > 0 && (
-              <div style={{ padding: "16px 20px", borderBottom: "1px solid #edf1f4" }}>
+              <div style={{ padding: "var(--space-lg)", borderBottom: "1px solid var(--color-border)" }}>
                 <CorrectionComparison
                   originalSentence={renderableAnalysis.originalSentence}
                   correctedSentence={renderableAnalysis.correctedSentence}
@@ -366,9 +336,9 @@ export default function LearnWorkspace() {
               </div>
             )}
 
-            <div style={{ padding: "18px 20px", borderBottom: "1px solid #edf1f4" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, lineHeight: 1.7 }}>
+            <div style={{ padding: "var(--space-lg)", borderBottom: "1px solid var(--color-border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, lineHeight: "var(--leading-relaxed)" }}>
                   <ColorCodedSentence
                     components={renderableAnalysis.components}
                     correctedSentence={renderableAnalysis.correctedSentence}
@@ -392,32 +362,25 @@ export default function LearnWorkspace() {
           </section>
         )}
 
+        {/* Legacy analysis */}
         {currentAnalysis && !renderableAnalysis && (
-          <section
-            style={{
-              borderRadius: "24px",
-              backgroundColor: "rgba(255,255,255,0.84)",
-              boxShadow: "0 18px 45px rgba(25, 49, 69, 0.08)",
-              border: "1px solid rgba(215, 222, 229, 0.95)",
-              overflow: "hidden",
-            }}
-          >
-            <div style={{ padding: "20px" }}>
-              <h2 style={{ margin: "0 0 8px 0", fontSize: "16px", color: "#20303b" }}>
+          <section className="card" style={{ overflow: "hidden" }}>
+            <div style={{ padding: "var(--space-xl)" }}>
+              <h2 style={{ margin: "0 0 var(--space-sm) 0", fontSize: "var(--text-body)", color: "var(--color-text)" }}>
                 Legacy analysis detected
               </h2>
-              <p style={{ margin: "0 0 8px 0", color: "#596d7c", fontSize: "14px" }}>
+              <p style={{ margin: "0 0 var(--space-sm) 0", color: "var(--color-text-secondary)", fontSize: "var(--text-small)" }}>
                 This sentence was created before the current analysis format.
               </p>
               <p
                 style={{
-                  margin: "0 0 12px 0",
-                  padding: "12px 14px",
-                  borderRadius: "14px",
-                  backgroundColor: "#ffffff",
-                  border: "1px solid #e4eaef",
-                  color: "#111827",
-                  fontSize: "14px",
+                  margin: "0 0 var(--space-md) 0",
+                  padding: "var(--space-md)",
+                  borderRadius: "var(--radius-md)",
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text)",
+                  fontSize: "var(--text-small)",
                 }}
               >
                 {currentAnalysis.sentence}
@@ -426,10 +389,7 @@ export default function LearnWorkspace() {
                 type="button"
                 onClick={handleRegenerateCurrent}
                 disabled={isRegenerating || isLoading}
-                className="ui-button"
-                style={{
-                  minHeight: "40px",
-                }}
+                className="btn-primary"
               >
                 {isRegenerating ? "Regenerating..." : "Regenerate sentence"}
               </button>
@@ -437,27 +397,12 @@ export default function LearnWorkspace() {
           </section>
         )}
 
-        <section style={{ display: "grid", gap: "12px" }}>
-          <h2
-            style={{
-              fontSize: "15px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "#7a8f9f",
-            }}
-          >
+        {/* Sentence library */}
+        <section style={{ display: "grid", gap: "var(--space-md)" }}>
+          <h2 className="section-label" style={{ fontSize: "var(--text-small)" }}>
             Sentence library
           </h2>
-          <div
-            style={{
-              borderRadius: "24px",
-              boxShadow: "0 18px 45px rgba(25, 49, 69, 0.08)",
-              border: "1px solid rgba(215, 222, 229, 0.95)",
-              overflow: "hidden",
-              backgroundColor: "rgba(255,255,255,0.84)",
-            }}
-          >
+          <div className="card" style={{ overflow: "hidden" }}>
             <SentenceLibrary
               sentences={sentences}
               onSelect={handleLibrarySelect}
@@ -477,6 +422,21 @@ export default function LearnWorkspace() {
           </div>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete sentence"
+        message={
+          pendingDelete
+            ? `"${pendingDelete.sentence.length > 80 ? pendingDelete.sentence.slice(0, 80) + "..." : pendingDelete.sentence}" will be permanently removed.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        variant="danger"
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </main>
   );
 }

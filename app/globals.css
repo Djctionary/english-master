@@ -1,4 +1,101 @@
-/* CSS Reset & Base Styles */
+/* ══════════════════════════════════════════════════════════
+   Design Tokens — v0.4 "Calm Education" Design System
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Primary ── */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-light: #EFF6FF;
+  --color-primary-subtle: #DBEAFE;
+
+  /* ── Semantic ── */
+  --color-success: #22C55E;
+  --color-success-light: #F0FDF4;
+  --color-success-border: #BBF7D0;
+  --color-warning: #F59E0B;
+  --color-warning-light: #FEF3C7;
+  --color-warning-border: #FDE68A;
+  --color-error: #EF4444;
+  --color-error-hover: #DC2626;
+  --color-error-light: #FEE2E2;
+  --color-error-border: #FECACA;
+
+  /* ── Neutrals ── */
+  --color-text: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+  --color-border: #E2E8F0;
+  --color-border-strong: #CBD5E1;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #F1F5F9;
+
+  /* ── Accent ── */
+  --color-accent-violet: #8B5CF6;
+  --color-accent-cyan: #06B6D4;
+
+  /* ── Grammar colors ── */
+  --color-grammar-subject: #3B82F6;
+  --color-grammar-predicate: #EF4444;
+  --color-grammar-object: #22C55E;
+  --color-grammar-indirect: #10B981;
+  --color-grammar-complement: #06B6D4;
+  --color-grammar-adverbial: #F97316;
+  --color-grammar-prepositional: #A855F7;
+  --color-grammar-conjunction: #6B7280;
+  --color-grammar-other: #64748B;
+
+  /* ── Typography ── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+
+  --text-display: clamp(1.75rem, 4vw, 2.25rem);
+  --text-heading: 1.25rem;
+  --text-subheading: 0.875rem;
+  --text-body: 1rem;
+  --text-small: 0.8125rem;
+  --text-caption: 0.75rem;
+  --text-tiny: 0.6875rem;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.8;
+
+  /* ── Spacing (8px base) ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* ── Radius ── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.10);
+
+  /* ── Transitions ── */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+}
+
+/* ══════════════════════════════════════════════════════════
+   CSS Reset & Base Styles
+   ══════════════════════════════════════════════════════════ */
+
 *,
 *::before,
 *::after {
@@ -13,12 +110,11 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
-  color: #1F2937;
-  background-color: #F9FAFB;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  background-color: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -34,33 +130,40 @@ button {
 }
 
 textarea,
-input {
+input,
+select {
   font-family: inherit;
 }
 
+/* ══════════════════════════════════════════════════════════
+   Shared UI Components
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Nav button (pill) ── */
 .ui-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 12px 18px;
-  border-radius: 999px;
-  border: 1px solid #d8c9bd;
-  background-color: #f7efe8;
-  color: #7b5136;
-  font-weight: 600;
+  min-height: 40px;
+  padding: 8px 18px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .ui-button.is-active {
-  background-color: #f1e5da;
-  border-color: #cfae96;
-  color: #6c4125;
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
 }
 
 .ui-button:disabled {
@@ -69,40 +172,158 @@ input {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ui-button:hover:not(:disabled) {
-    background-color: #f3e7dd;
-    border-color: #cfae96;
-    color: #6c4125;
+  .ui-button:hover:not(:disabled):not(.is-active) {
+    background-color: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
+    transform: translateY(-1px);
+  }
+  .ui-button.is-active:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
     transform: translateY(-1px);
   }
 }
 
-/* Responsive basics */
+/* ── Primary action button ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: var(--color-primary);
+  color: var(--color-surface);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+    transform: translateY(-1px);
+  }
+}
+
+/* ── Secondary / ghost button ── */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-surface-alt);
+    border-color: var(--color-border-strong);
+  }
+}
+
+/* ── Card container ── */
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Section label (uppercase) ── */
+.section-label {
+  font-size: var(--text-tiny);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Input / textarea base ── */
+.input-base {
+  width: 100%;
+  padding: var(--space-md);
+  font-size: var(--text-body);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast);
+}
+
+.input-base:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.input-base::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Animations
+   ══════════════════════════════════════════════════════════ */
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Responsive
+   ══════════════════════════════════════════════════════════ */
+
 @media (max-width: 640px) {
   body {
     font-size: 15px;
   }
 }
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
-  /* Page container: reduce padding */
   .page-container {
-    padding: 16px 12px !important;
+    padding: var(--space-lg) var(--space-md) !important;
   }
 
-  /* DetailView: single column */
   .detail-view-columns {
     flex-direction: column !important;
   }
 
-  /* CorrectionComparison: stack vertically */
   .correction-comparison {
     flex-direction: column !important;
   }
 
-  /* Skeleton: reduce indentation on mobile */
   .skeleton-layer {
-    padding-left: 8px !important;
+    padding-left: var(--space-sm) !important;
   }
 }

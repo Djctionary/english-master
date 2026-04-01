@@ -17,7 +17,7 @@ Ideas and known issues — not yet scheduled for any version.
 
 ## Bugs
 
-- [ ] History list: long sentences overflow and overlay the delete button (needs text wrapping / truncation)
+- [x] History list: long sentences overflow and overlay the delete button — fixed in v0.4 (min-width: 0 + text-overflow: ellipsis)
 
 ## Open Questions
 

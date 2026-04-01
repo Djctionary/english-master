@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4 — UI/UX Design Overhaul (01/04/2026)
+
+Unified design system across the entire app — "Calm Education" style.
+
+- **Design system:** CSS custom properties for colors, typography, spacing, radius, shadows
+- **Inter font:** Loaded via `next/font/google` for crisp, professional typography
+- **Blue primary palette:** `#2563EB` brand blue, semantic green/amber/red for review states
+- **Consistent components:** `.btn-primary`, `.btn-secondary`, `.ui-button`, `.card`, `.input-base`, `.section-label` CSS classes
+- **All 9 components refactored:** replaced 60+ hardcoded hex values with CSS variables
+- **Bug fix:** Long sentences in history no longer overflow — `min-width: 0` on flex item enables proper text truncation
+- **Removed:** Old brown/beige button theme, inconsistent inline colors, multiple text color shades
+- **Spacing scale:** 8px-based system (xs/sm/md/lg/xl/2xl/3xl)
+- **Typography scale:** display/heading/subheading/body/small/caption/tiny with consistent line heights
+
+---
+
 ## v0.3 — Review Page Overhaul (01/04/2026)
 
 Rebuilt the review experience with better UX and useful content.

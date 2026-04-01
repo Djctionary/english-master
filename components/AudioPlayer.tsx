@@ -55,7 +55,7 @@ export default function AudioPlayer({ audioFilename }: AudioPlayerProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--space-xs)" }}>
       <audio
         ref={audioRef}
         src={`/api/audio/${audioFilename}`}
@@ -68,20 +68,25 @@ export default function AudioPlayer({ audioFilename }: AudioPlayerProps) {
       <button
         onClick={togglePlayPause}
         aria-label={isPlaying ? "Pause audio" : "Play audio"}
+        className={isPlaying ? "btn-secondary" : "btn-primary"}
         style={{
-          padding: "8px 16px",
-          fontSize: "14px",
-          borderRadius: "6px",
-          border: "1px solid #ccc",
-          backgroundColor: isPlaying ? "#EF4444" : "#3B82F6",
-          color: "#fff",
-          cursor: "pointer",
+          padding: "var(--space-sm) var(--space-lg)",
+          fontSize: "var(--text-small)",
+          ...(isPlaying && {
+            borderColor: "var(--color-error)",
+            color: "var(--color-error)",
+          }),
         }}
       >
-        {isPlaying ? "⏸ Pause" : "▶ Play"}
+        {isPlaying ? "Pause" : "Play"}
       </button>
       {playError && (
-        <span style={{ fontSize: "11px", color: "#DC2626", maxWidth: "180px", textAlign: "right" }}>
+        <span style={{
+          fontSize: "var(--text-tiny)",
+          color: "var(--color-error)",
+          maxWidth: "180px",
+          textAlign: "right",
+        }}>
           {playError}
         </span>
       )}

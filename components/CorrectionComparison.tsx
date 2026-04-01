@@ -8,46 +8,6 @@ export interface CorrectionComparisonProps {
   corrections: Correction[];
 }
 
-const containerStyle: React.CSSProperties = {
-  padding: "16px",
-  backgroundColor: "#FFFBEB",
-  borderRadius: "8px",
-  border: "1px solid #FDE68A",
-  marginBottom: "16px",
-};
-
-const headingStyle: React.CSSProperties = {
-  fontSize: "16px",
-  fontWeight: 600,
-  marginBottom: "12px",
-  color: "#92400E",
-};
-
-const comparisonRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "16px",
-};
-
-const sentenceBoxStyle: React.CSSProperties = {
-  flex: 1,
-  padding: "12px",
-  borderRadius: "6px",
-  fontSize: "15px",
-  lineHeight: 1.6,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  fontWeight: 600,
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.05em",
-  marginBottom: "6px",
-};
-
-/**
- * Highlights occurrences of correction originals in the sentence with red strikethrough,
- * and correction targets in the corrected sentence with green.
- */
 function highlightOriginal(sentence: string, corrections: Correction[]): React.ReactNode[] {
   if (corrections.length === 0) return [sentence];
 
@@ -55,7 +15,6 @@ function highlightOriginal(sentence: string, corrections: Correction[]): React.R
   let remaining = sentence;
   let keyIndex = 0;
 
-  // Process each correction's original text in order of appearance
   const sortedCorrections = [...corrections].sort((a, b) => {
     const idxA = sentence.indexOf(a.original);
     const idxB = sentence.indexOf(b.original);
@@ -73,9 +32,9 @@ function highlightOriginal(sentence: string, corrections: Correction[]): React.R
       <span
         key={`err-${keyIndex++}`}
         style={{
-          color: "#DC2626",
+          color: "var(--color-error-hover)",
           textDecoration: "line-through",
-          backgroundColor: "#FEE2E2",
+          backgroundColor: "var(--color-error-light)",
           borderRadius: "2px",
           padding: "0 2px",
         }}
@@ -89,7 +48,6 @@ function highlightOriginal(sentence: string, corrections: Correction[]): React.R
   if (remaining) {
     parts.push(<span key={`text-${keyIndex++}`}>{remaining}</span>);
   }
-
   return parts;
 }
 
@@ -117,9 +75,9 @@ function highlightCorrected(sentence: string, corrections: Correction[]): React.
       <span
         key={`fix-${keyIndex++}`}
         style={{
-          color: "#16A34A",
+          color: "var(--color-success)",
           fontWeight: 600,
-          backgroundColor: "#DCFCE7",
+          backgroundColor: "var(--color-success-light)",
           borderRadius: "2px",
           padding: "0 2px",
         }}
@@ -133,7 +91,6 @@ function highlightCorrected(sentence: string, corrections: Correction[]): React.
   if (remaining) {
     parts.push(<span key={`text-${keyIndex++}`}>{remaining}</span>);
   }
-
   return parts;
 }
 
@@ -145,16 +102,51 @@ export default function CorrectionComparison({
   if (corrections.length === 0) return null;
 
   return (
-    <div style={containerStyle} aria-label="Correction comparison">
-      <h3 style={headingStyle}>Corrections</h3>
+    <div
+      style={{
+        padding: "var(--space-lg)",
+        backgroundColor: "var(--color-warning-light)",
+        borderRadius: "var(--radius-md)",
+        border: "1px solid var(--color-warning-border)",
+        marginBottom: "var(--space-lg)",
+      }}
+      aria-label="Correction comparison"
+    >
+      <h3
+        style={{
+          fontSize: "var(--text-body)",
+          fontWeight: 600,
+          marginBottom: "var(--space-md)",
+          color: "#92400E",
+        }}
+      >
+        Corrections
+      </h3>
 
-      {/* Side-by-side sentence comparison */}
-      <div style={comparisonRowStyle}>
-        <div style={{ ...sentenceBoxStyle, backgroundColor: "#FEF2F2" }}>
-          <div style={{ ...labelStyle, color: "#991B1B" }}>Original</div>
+      <div className="correction-comparison" style={{ display: "flex", gap: "var(--space-lg)" }}>
+        <div
+          style={{
+            flex: 1,
+            padding: "var(--space-md)",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "15px",
+            lineHeight: "var(--leading-normal)",
+            backgroundColor: "var(--color-error-light)",
+          }}
+        >
+          <div style={labelStyle}>Original</div>
           <div>{highlightOriginal(originalSentence, corrections)}</div>
         </div>
-        <div style={{ ...sentenceBoxStyle, backgroundColor: "#F0FDF4" }}>
+        <div
+          style={{
+            flex: 1,
+            padding: "var(--space-md)",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "15px",
+            lineHeight: "var(--leading-normal)",
+            backgroundColor: "var(--color-success-light)",
+          }}
+        >
           <div style={{ ...labelStyle, color: "#166534" }}>Corrected</div>
           <div>{highlightCorrected(correctedSentence, corrections)}</div>
         </div>
@@ -162,3 +154,12 @@ export default function CorrectionComparison({
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "var(--text-caption)" as string,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  marginBottom: "var(--space-sm)" as string,
+  color: "#991B1B",
+};

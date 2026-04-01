@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v0.2** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v0.4** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -25,7 +25,8 @@ docs/specs/      — CHANGELOG.md, BACKLOG.md, version specs
 
 - **SM-2 Review:** 8 stages (8h → 1d → 3d → 7d → 14d → 30d → 60d → 120d). Full +1, partial −1, missed → reset.  Logic in `lib/review.ts`.
 - **DB:** `sentences` + `sentence_review_states` tables. Provider: `DATASTORE_PROVIDER` → `DATABASE_URL` (pg) → SQLite. Auto-migrations in `lib/db.ts`.
-- **Components:** All client-side, hooks-only state, vanilla CSS, `fetch()` to internal API.
+- **Components:** All client-side, hooks-only state, CSS custom properties (design tokens in `globals.css`), `fetch()` to internal API.
+- **Design System:** "Calm Education" style — blue primary (`#2563EB`), Inter font, 8px spacing scale. All colors/sizes use CSS variables (`var(--color-*)`, `var(--text-*)`, `var(--space-*)`). See `docs/specs/v0.4.md` for full token reference.
 
 ## Commands
 

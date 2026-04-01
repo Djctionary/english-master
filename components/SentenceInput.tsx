@@ -30,7 +30,7 @@ export default function SentenceInput({
 
   return (
     <form onSubmit={handleSubmit} style={{ width: "100%" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
         <textarea
           value={input}
           onChange={(e) => {
@@ -41,37 +41,27 @@ export default function SentenceInput({
           disabled={isLoading}
           rows={3}
           aria-label="Sentence input"
-          style={{
-            width: "100%",
-            padding: "12px",
-            fontSize: "16px",
-            borderRadius: "6px",
-            border: "1px solid #ccc",
-            resize: "vertical",
-            boxSizing: "border-box",
-          }}
+          className="input-base"
+          style={{ resize: "vertical" }}
         />
 
         <button
           type="submit"
           disabled={isLoading}
-          className="ui-button"
-          style={{
-            alignSelf: "flex-start",
-            fontSize: "15px",
-          }}
+          className="btn-primary"
+          style={{ alignSelf: "flex-start" }}
         >
           {isLoading ? "Analyzing..." : "Analyze"}
         </button>
 
         {validationError && (
-          <p role="alert" style={{ color: "#EF4444", margin: 0 }}>
+          <p role="alert" style={{ color: "var(--color-error)", margin: 0, fontSize: "var(--text-small)" }}>
             {validationError}
           </p>
         )}
 
         {error && (
-          <p role="alert" style={{ color: "#EF4444", margin: 0 }}>
+          <p role="alert" style={{ color: "var(--color-error)", margin: 0, fontSize: "var(--text-small)" }}>
             {error}
           </p>
         )}

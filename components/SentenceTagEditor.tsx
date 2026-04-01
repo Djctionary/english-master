@@ -35,10 +35,7 @@ export default function SentenceTagEditor({
   }, [currentTag]);
 
   const sortedTags = useMemo(
-    () =>
-      [...existingTags].sort((a, b) =>
-        formatTag(a).localeCompare(formatTag(b))
-      ),
+    () => [...existingTags].sort((a, b) => formatTag(a).localeCompare(formatTag(b))),
     [existingTags]
   );
 
@@ -48,13 +45,11 @@ export default function SentenceTagEditor({
       setLocalError("Please choose a saved tag first.");
       return;
     }
-
     const [type = "", name = ""] = selectedExisting.split("|||");
     if (!type || !name) {
       setLocalError("Selected tag is invalid.");
       return;
     }
-
     await onSaveTag({ type, name });
     setCustomType(type);
     setCustomName(name);
@@ -64,12 +59,10 @@ export default function SentenceTagEditor({
     setLocalError(null);
     const type = customType.trim();
     const name = customName.trim();
-
     if (!type || !name) {
       setLocalError("Type and name are required.");
       return;
     }
-
     await onSaveTag({ type, name });
   };
 
@@ -80,39 +73,34 @@ export default function SentenceTagEditor({
 
   return (
     <div aria-label="Sentence tag editor">
-      <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", color: "#1F2937" }}>
+      <h3 style={{ margin: "0 0 var(--space-sm) 0", fontSize: "var(--text-body)", color: "var(--color-text)" }}>
         Context Tag
       </h3>
-      <p style={{ margin: "0 0 12px 0", color: "#6B7280", fontSize: "13px" }}>
+      <p style={{ margin: "0 0 var(--space-md) 0", color: "var(--color-text-muted)", fontSize: "var(--text-small)" }}>
         Add where you saw this sentence so review is easier to remember.
       </p>
 
-      <div style={{ marginBottom: "10px", fontSize: "14px", color: "#374151" }}>
+      <div style={{ marginBottom: "var(--space-md)", fontSize: "var(--text-small)", color: "var(--color-text)" }}>
         <strong>Current:</strong>{" "}
         {currentTag ? formatTag(currentTag) : "No tag yet"}
       </div>
 
       {sortedTags.length > 0 && (
-        <div style={{ marginBottom: "12px" }}>
+        <div style={{ marginBottom: "var(--space-md)" }}>
           <label
             htmlFor="existing-tag-select"
-            style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#374151" }}
+            style={{ display: "block", marginBottom: "var(--space-sm)", fontSize: "var(--text-small)", color: "var(--color-text)" }}
           >
             Choose from existing tags
           </label>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
             <select
               id="existing-tag-select"
               value={selectedExisting}
               onChange={(e) => setSelectedExisting(e.target.value)}
               disabled={isSaving}
-              style={{
-                minWidth: "240px",
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid #D1D5DB",
-                backgroundColor: "#FFFFFF",
-              }}
+              className="input-base"
+              style={{ minWidth: "240px", width: "auto" }}
             >
               <option value="">Select one...</option>
               {sortedTags.map((tag) => {
@@ -128,13 +116,7 @@ export default function SentenceTagEditor({
               type="button"
               onClick={applyExistingTag}
               disabled={isSaving || !selectedExisting}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "6px",
-                border: "1px solid #D1D5DB",
-                backgroundColor: "#FFFFFF",
-                cursor: isSaving || !selectedExisting ? "not-allowed" : "pointer",
-              }}
+              className="btn-secondary"
             >
               Use Selected
             </button>
@@ -142,10 +124,10 @@ export default function SentenceTagEditor({
         </div>
       )}
 
-      <div style={{ marginBottom: "10px" }}>
+      <div style={{ marginBottom: "var(--space-md)" }}>
         <label
           htmlFor="tag-type-input"
-          style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#374151" }}
+          style={{ display: "block", marginBottom: "var(--space-sm)", fontSize: "var(--text-small)", color: "var(--color-text)" }}
         >
           Type (e.g., Game, Music)
         </label>
@@ -156,21 +138,15 @@ export default function SentenceTagEditor({
           maxLength={40}
           disabled={isSaving}
           placeholder="Game"
-          style={{
-            width: "100%",
-            maxWidth: "320px",
-            padding: "8px",
-            borderRadius: "6px",
-            border: "1px solid #D1D5DB",
-            boxSizing: "border-box",
-          }}
+          className="input-base"
+          style={{ maxWidth: "320px" }}
         />
       </div>
 
-      <div style={{ marginBottom: "10px" }}>
+      <div style={{ marginBottom: "var(--space-md)" }}>
         <label
           htmlFor="tag-name-input"
-          style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#374151" }}
+          style={{ display: "block", marginBottom: "var(--space-sm)", fontSize: "var(--text-small)", color: "var(--color-text)" }}
         >
           Name (source title)
         </label>
@@ -181,30 +157,17 @@ export default function SentenceTagEditor({
           maxLength={100}
           disabled={isSaving}
           placeholder="Arknights"
-          style={{
-            width: "100%",
-            maxWidth: "420px",
-            padding: "8px",
-            borderRadius: "6px",
-            border: "1px solid #D1D5DB",
-            boxSizing: "border-box",
-          }}
+          className="input-base"
+          style={{ maxWidth: "420px" }}
         />
       </div>
 
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
         <button
           type="button"
           onClick={saveCustomTag}
           disabled={isSaving}
-          style={{
-            padding: "8px 12px",
-            borderRadius: "6px",
-            border: "none",
-            backgroundColor: "#2563EB",
-            color: "#FFFFFF",
-            cursor: isSaving ? "not-allowed" : "pointer",
-          }}
+          className="btn-primary"
         >
           {isSaving ? "Saving..." : "Save Tag"}
         </button>
@@ -213,13 +176,7 @@ export default function SentenceTagEditor({
             type="button"
             onClick={clearTag}
             disabled={isSaving}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "6px",
-              border: "1px solid #D1D5DB",
-              backgroundColor: "#FFFFFF",
-              cursor: isSaving ? "not-allowed" : "pointer",
-            }}
+            className="btn-secondary"
           >
             Remove Tag
           </button>
@@ -227,7 +184,7 @@ export default function SentenceTagEditor({
       </div>
 
       {(localError || error) && (
-        <p role="alert" style={{ margin: "10px 0 0 0", color: "#DC2626" }}>
+        <p role="alert" style={{ margin: "var(--space-md) 0 0 0", color: "var(--color-error)", fontSize: "var(--text-small)" }}>
           {localError ?? error}
         </p>
       )}

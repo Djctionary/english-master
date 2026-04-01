@@ -14,9 +14,9 @@ const CARD_LIMIT = 10;
 const MAX_REPLAYS = 3;
 
 const RESULT_CONFIG: Record<ReviewResult, { label: string; color: string; bg: string }> = {
-  full: { label: "Fully understood", color: "#16a34a", bg: "#f0fdf4" },
-  partial: { label: "Mostly understood", color: "#ca8a04", bg: "#fefce8" },
-  missed: { label: "Missed it", color: "#dc2626", bg: "#fef2f2" },
+  full: { label: "Fully understood", color: "var(--color-success)", bg: "var(--color-success-light)" },
+  partial: { label: "Mostly understood", color: "var(--color-warning)", bg: "var(--color-warning-light)" },
+  missed: { label: "Missed it", color: "var(--color-error)", bg: "var(--color-error-light)" },
 };
 
 function isValidAnalysis(a: unknown): a is AnalysisResult {
@@ -73,7 +73,6 @@ export default function ReviewPage() {
     void loadQueue();
   }, []);
 
-  // Auto-play audio when current card changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentItem) return;
@@ -159,39 +158,60 @@ export default function ReviewPage() {
       : null;
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "linear-gradient(180deg, #f8f6f3 0%, #f4f5f7 50%, #f1f3f6 100%)",
-      padding: "32px 16px 64px",
-    }}>
-      <div style={{ maxWidth: "720px", margin: "0 auto", display: "grid", gap: "20px" }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "var(--color-bg)",
+        padding: "var(--space-2xl) var(--space-lg) var(--space-3xl)",
+      }}
+    >
+      <div style={{ maxWidth: "1120px", margin: "0 auto", display: "grid", gap: "var(--space-xl)" }}>
 
         {/* Header */}
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "var(--space-lg)",
+            flexWrap: "wrap",
+          }}
+        >
           <div>
-            <span style={{ fontSize: "11px", letterSpacing: "0.14em", textTransform: "uppercase", color: "#9a7b5b", fontWeight: 700 }}>
-              Review
-            </span>
-            <h1 style={{ fontSize: "clamp(1.6rem, 4vw, 2.4rem)", lineHeight: 1.1, color: "#1a2530", margin: "4px 0 0" }}>
+            <span className="section-label">Review</span>
+            <h1
+              style={{
+                fontSize: "var(--text-display)",
+                lineHeight: "var(--leading-tight)",
+                color: "var(--color-text)",
+                margin: "var(--space-xs) 0 0",
+              }}
+            >
               Listen & recall.
             </h1>
           </div>
-          <nav style={{ display: "flex", gap: "8px" }}>
-            <Link href="/learn" className="ui-button">Learn</Link>
-            <Link href="/review" className="ui-button is-active">Review</Link>
+          <nav style={{ display: "flex", gap: "var(--space-sm)" }}>
+            <Link href="/learn" className="ui-button">
+              Learn
+            </Link>
+            <Link href="/review" className="ui-button is-active">
+              Review
+            </Link>
           </nav>
         </header>
 
         {/* Stats bar */}
         {queue && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "1px",
-            backgroundColor: "#e2e6ea",
-            borderRadius: "14px",
-            overflow: "hidden",
-          }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "1px",
+              backgroundColor: "var(--color-border)",
+              borderRadius: "var(--radius-md)",
+              overflow: "hidden",
+            }}
+          >
             <StatCell label="Total" value={queue.totalSentences} />
             <StatCell label="Due" value={queue.dueCount} highlight />
             <StatCell label="Reviewed" value={reviewedCount} />
@@ -201,67 +221,108 @@ export default function ReviewPage() {
 
         {/* Progress bar */}
         {queue && queue.items.length > 0 && !sessionComplete && (
-          <div style={{ display: "grid", gap: "4px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#7a8a96" }}>
-              <span>Card {Math.min(currentIndex + 1, queue.items.length)} / {queue.items.length}</span>
+          <div style={{ display: "grid", gap: "var(--space-xs)" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "var(--text-caption)",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              <span>
+                Card {Math.min(currentIndex + 1, queue.items.length)} / {queue.items.length}
+              </span>
               <span>{Math.round(progressPercent)}%</span>
             </div>
-            <div style={{
-              width: "100%", height: "6px", borderRadius: "99px",
-              backgroundColor: "#e5e7eb", overflow: "hidden",
-            }}>
-              <div style={{
-                width: `${progressPercent}%`, height: "100%", borderRadius: "99px",
-                background: "linear-gradient(90deg, #c06030, #d4944a)",
-                transition: "width 0.3s ease",
-              }} />
+            <div
+              style={{
+                width: "100%",
+                height: "6px",
+                borderRadius: "var(--radius-full)",
+                backgroundColor: "var(--color-border)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${progressPercent}%`,
+                  height: "100%",
+                  borderRadius: "var(--radius-full)",
+                  backgroundColor: "var(--color-primary)",
+                  transition: "width 0.3s ease",
+                }}
+              />
             </div>
           </div>
         )}
 
         {/* Main card area */}
-        <section style={{
-          backgroundColor: "#fff",
-          border: "1px solid #e5e8ec",
-          borderRadius: "20px",
-          padding: "24px",
-          boxShadow: "0 4px 24px rgba(20, 40, 60, 0.06)",
-          minHeight: "360px",
-          display: "grid",
-          alignContent: "start",
-          gap: "20px",
-        }}>
-
+        <section
+          className="card"
+          style={{
+            padding: "var(--space-xl)",
+            display: "grid",
+            alignContent: "start",
+            gap: "var(--space-xl)",
+          }}
+        >
           {/* Loading */}
           {loading && (
-            <p style={{ color: "#7a8a96", fontSize: "15px" }}>Loading review queue...</p>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-small)" }}>
+              Loading review queue...
+            </p>
           )}
 
           {/* Error */}
           {!loading && error && (
-            <div style={{ display: "grid", gap: "12px" }}>
-              <p style={{ color: "#dc2626", fontWeight: 600 }}>{error}</p>
-              <button type="button" onClick={() => void loadQueue()} className="ui-button">Reload</button>
+            <div style={{ display: "grid", gap: "var(--space-md)" }}>
+              <p style={{ color: "var(--color-error)", fontWeight: 600 }}>{error}</p>
+              <button type="button" onClick={() => void loadQueue()} className="btn-primary">
+                Reload
+              </button>
             </div>
           )}
 
           {/* Session complete */}
           {sessionComplete && (
-            <div style={{ display: "grid", gap: "16px", textAlign: "center", padding: "32px 0" }}>
+            <div
+              style={{
+                display: "grid",
+                gap: "var(--space-lg)",
+                textAlign: "center",
+                padding: "var(--space-2xl) 0",
+              }}
+            >
               <div style={{ fontSize: "48px" }}>&#127942;</div>
-              <h2 style={{ fontSize: "24px", color: "#1a2530", fontWeight: 700 }}>
+              <h2
+                style={{
+                  fontSize: "var(--text-heading)",
+                  color: "var(--color-text)",
+                  fontWeight: 700,
+                }}
+              >
                 {queue.dueCount > 0 ? "Session complete!" : "All caught up!"}
               </h2>
-              <p style={{ color: "#5a6a78", maxWidth: "40ch", margin: "0 auto", lineHeight: 1.6 }}>
+              <p
+                style={{
+                  color: "var(--color-text-secondary)",
+                  maxWidth: "40ch",
+                  margin: "0 auto",
+                  lineHeight: "var(--leading-normal)",
+                }}
+              >
                 {reviewedCount > 0
                   ? `You reviewed ${reviewedCount} sentence${reviewedCount === 1 ? "" : "s"} this session. Consistency is how fluency is built.`
                   : "No sentences are due right now. Come back later when your next review is scheduled."}
               </p>
-              <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "8px" }}>
-                <button type="button" onClick={() => void loadQueue()} className="ui-button">
+              <div style={{ display: "flex", gap: "var(--space-md)", justifyContent: "center", marginTop: "var(--space-sm)" }}>
+                <button type="button" onClick={() => void loadQueue()} className="btn-primary">
                   Refresh queue
                 </button>
-                <Link href="/learn" className="ui-button">Go learn</Link>
+                <Link href="/learn" className="ui-button">
+                  Go learn
+                </Link>
               </div>
             </div>
           )}
@@ -272,145 +333,217 @@ export default function ReviewPage() {
               {/* Audio element */}
               <audio
                 ref={audioRef}
-                src={currentItem.sentence.audioFilename
-                  ? `/api/audio/${currentItem.sentence.audioFilename}`
-                  : undefined}
+                src={
+                  currentItem.sentence.audioFilename
+                    ? `/api/audio/${currentItem.sentence.audioFilename}`
+                    : undefined
+                }
                 onError={() => setAudioError("Audio unavailable.")}
               />
 
               {/* Blind listen / Revealed */}
-              <div style={{
-                borderRadius: "14px",
-                padding: "20px",
-                background: revealed ? "#fafaf8" : "#fafbfc",
-                border: "1px solid #eef0f3",
-                display: "grid",
-                gap: "16px",
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                  <span style={{
-                    fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase",
-                    color: revealed ? "#9a7b5b" : "#7a8a96", fontWeight: 700,
-                  }}>
-                    {revealed ? "Revealed" : "Blind listen"}
-                  </span>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {!revealed && (
+                <div
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                    padding: "var(--space-2xl) var(--space-xl)",
+                    background: "var(--color-surface-alt)",
+                    border: "1px solid var(--color-border)",
+                    display: "grid",
+                    gap: "var(--space-xl)",
+                    textAlign: "center",
+                  }}
+                >
+                  {/* Audio icon + replay */}
+                  <div style={{ display: "grid", gap: "var(--space-md)", justifyItems: "center" }}>
                     <button
                       type="button"
                       onClick={handleReplay}
-                      disabled={!revealed && replaysLeft <= 0}
-                      className="ui-button"
-                      style={{ fontSize: "13px", padding: "6px 14px", opacity: (!revealed && replaysLeft <= 0) ? 0.4 : 1 }}
+                      disabled={replaysLeft <= 0}
+                      aria-label="Replay audio"
+                      style={{
+                        width: "64px",
+                        height: "64px",
+                        borderRadius: "var(--radius-full)",
+                        border: "none",
+                        backgroundColor: replaysLeft > 0 ? "var(--color-primary)" : "var(--color-border)",
+                        color: "var(--color-surface)",
+                        fontSize: "24px",
+                        cursor: replaysLeft > 0 ? "pointer" : "not-allowed",
+                        transition: "background-color var(--transition-fast), transform var(--transition-fast)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                     >
-                      {revealed ? "Replay" : `Replay (${replaysLeft})`}
+                      &#9654;
                     </button>
-                    {revealed && (
-                      <button
-                        type="button"
-                        onClick={handleNext}
-                        style={{
-                          fontSize: "13px",
-                          padding: "6px 18px",
-                          borderRadius: "10px",
-                          border: "none",
-                          backgroundColor: "#1a2530",
-                          color: "#fff",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Next &rarr;
-                      </button>
-                    )}
+                    <div style={{ fontSize: "var(--text-caption)", color: "var(--color-text-muted)" }}>
+                      {replaysLeft > 0
+                        ? `${replaysLeft} replay${replaysLeft === 1 ? "" : "s"} remaining`
+                        : "No replays left"}
+                    </div>
+                  </div>
+
+                  {audioError && (
+                    <p style={{ color: "var(--color-error)", fontSize: "var(--text-small)", margin: 0 }}>
+                      {audioError}
+                    </p>
+                  )}
+
+                  {/* How well did you understand? */}
+                  <div style={{ display: "grid", gap: "var(--space-md)" }}>
+                    <p style={{ fontSize: "var(--text-small)", color: "var(--color-text-secondary)", margin: 0 }}>
+                      How well did you understand?
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-sm)" }}>
+                      {(["full", "partial", "missed"] as ReviewResult[]).map((r) => {
+                        const cfg = RESULT_CONFIG[r];
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => handleResult(r)}
+                            style={{
+                              borderRadius: "var(--radius-sm)",
+                              padding: "var(--space-md) var(--space-sm)",
+                              border: "1px solid var(--color-border)",
+                              backgroundColor: "var(--color-surface)",
+                              cursor: submitting ? "not-allowed" : "pointer",
+                              opacity: submitting ? 0.5 : 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "var(--space-sm)",
+                              transition: "background-color var(--transition-fast)",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "var(--radius-full)",
+                                backgroundColor: cfg.color,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontSize: "var(--text-small)",
+                                fontWeight: 600,
+                                color: "var(--color-text)",
+                              }}
+                            >
+                              {cfg.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+              )}
 
-                {audioError && (
-                  <p style={{ color: "#dc2626", fontSize: "13px", margin: 0 }}>{audioError}</p>
-                )}
+              {/* Revealed state */}
+              {revealed && (
+                <div
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                    padding: "var(--space-xl)",
+                    background: "var(--color-surface-alt)",
+                    border: "1px solid var(--color-border)",
+                    display: "grid",
+                    gap: "var(--space-lg)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "var(--space-md)",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span className="section-label">Revealed</span>
+                    <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+                      <button type="button" onClick={handleReplay} className="btn-secondary">
+                        Replay
+                      </button>
+                      <button type="button" onClick={handleNext} className="btn-primary">
+                        Next &rarr;
+                      </button>
+                    </div>
+                  </div>
 
-                {/* Sentence (shown after reveal) */}
-                {revealed && (
-                  <p style={{
-                    fontSize: "20px", lineHeight: 1.5, fontWeight: 600,
-                    color: "#1a2530", margin: 0,
-                  }}>
+                  {audioError && (
+                    <p style={{ color: "var(--color-error)", fontSize: "var(--text-small)", margin: 0 }}>
+                      {audioError}
+                    </p>
+                  )}
+
+                  <p
+                    style={{
+                      fontSize: "var(--text-heading)",
+                      lineHeight: 1.5,
+                      fontWeight: 600,
+                      color: "var(--color-text)",
+                      margin: 0,
+                    }}
+                  >
                     {currentItem.sentence.correctedSentence}
                   </p>
-                )}
-
-                {/* Result buttons (before reveal) */}
-                {!revealed && (
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "10px",
-                  }}>
-                    {(["full", "partial", "missed"] as ReviewResult[]).map((r) => {
-                      const cfg = RESULT_CONFIG[r];
-                      return (
-                        <button
-                          key={r}
-                          type="button"
-                          disabled={submitting}
-                          onClick={() => handleResult(r)}
-                          style={{
-                            borderRadius: "12px",
-                            padding: "14px 12px",
-                            border: "1px solid #e5e8ec",
-                            backgroundColor: "#fff",
-                            cursor: submitting ? "not-allowed" : "pointer",
-                            opacity: submitting ? 0.5 : 1,
-                            display: "grid",
-                            gap: "6px",
-                            textAlign: "center",
-                            transition: "background-color 0.15s",
-                          }}
-                        >
-                          <span style={{
-                            width: "10px", height: "10px", borderRadius: "99px",
-                            backgroundColor: cfg.color, margin: "0 auto",
-                          }} />
-                          <span style={{ fontSize: "14px", fontWeight: 600, color: "#2a3a48" }}>
-                            {cfg.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* After reveal: result + breakdown */}
               {revealed && (
                 <>
                   {/* Result feedback */}
                   {selectedResult && updatedState && (
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
-                      gap: "1px",
-                      backgroundColor: "#e5e8ec",
-                      borderRadius: "12px",
-                      overflow: "hidden",
-                    }}>
-                      <MiniStat label="Result" value={RESULT_CONFIG[selectedResult].label} color={RESULT_CONFIG[selectedResult].color} />
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: "1px",
+                        backgroundColor: "var(--color-border)",
+                        borderRadius: "var(--radius-md)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <MiniStat
+                        label="Result"
+                        value={RESULT_CONFIG[selectedResult].label}
+                        color={RESULT_CONFIG[selectedResult].color}
+                      />
                       <MiniStat label="New stage" value={`${updatedState.stage}`} />
                       <MiniStat label="Next review" value={formatInterval(updatedState.nextReviewAt)} />
                     </div>
                   )}
 
-                  {/* Compact breakdown: paraphrase + vocabulary + skeleton */}
+                  {/* Compact breakdown */}
                   {analysis && (
-                    <div style={{ display: "grid", gap: "14px" }}>
+                    <div style={{ display: "grid", gap: "var(--space-md)" }}>
                       {/* Paraphrase */}
                       {analysis.paraphrase && (
-                        <div style={{
-                          padding: "12px 14px", borderRadius: "10px",
-                          backgroundColor: "#f8f9fa", border: "1px solid #eef0f3",
-                        }}>
-                          <span style={labelStyle}>Meaning</span>
-                          <p style={{ margin: "4px 0 0", fontSize: "14px", lineHeight: 1.6, color: "#2a3a48" }}>
+                        <div
+                          style={{
+                            padding: "var(--space-md) var(--space-lg)",
+                            borderRadius: "var(--radius-md)",
+                            backgroundColor: "var(--color-surface-alt)",
+                            border: "1px solid var(--color-border)",
+                          }}
+                        >
+                          <span className="section-label">Meaning</span>
+                          <p
+                            style={{
+                              margin: "var(--space-xs) 0 0",
+                              fontSize: "var(--text-small)",
+                              lineHeight: "var(--leading-normal)",
+                              color: "var(--color-text)",
+                            }}
+                          >
                             {analysis.paraphrase}
                           </p>
                         </div>
@@ -418,23 +551,47 @@ export default function ReviewPage() {
 
                       {/* Vocabulary */}
                       {analysis.vocabulary.length > 0 && (
-                        <div style={{
-                          padding: "12px 14px", borderRadius: "10px",
-                          backgroundColor: "#f8f9fa", border: "1px solid #eef0f3",
-                        }}>
-                          <span style={labelStyle}>Key vocabulary</span>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+                        <div
+                          style={{
+                            padding: "var(--space-md) var(--space-lg)",
+                            borderRadius: "var(--radius-md)",
+                            backgroundColor: "var(--color-surface-alt)",
+                            border: "1px solid var(--color-border)",
+                          }}
+                        >
+                          <span className="section-label">Key vocabulary</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", marginTop: "var(--space-sm)" }}>
                             {analysis.vocabulary.map((v, i) => (
-                              <span key={i} style={{
-                                display: "inline-flex", alignItems: "baseline", gap: "4px",
-                                padding: "4px 10px", borderRadius: "8px",
-                                backgroundColor: "#fff", border: "1px solid #e5e8ec",
-                                fontSize: "13px",
-                              }}>
-                                <strong style={{ color: "#1a2530" }}>{v.word}</strong>
-                                {v.phonetic && <span style={{ color: "#9aa5ae", fontSize: "11px" }}>{v.phonetic}</span>}
-                                <span style={{ color: "#5a6a78" }}>— {v.definition}</span>
-                              </span>
+                              <div
+                                key={i}
+                                style={{
+                                  padding: "var(--space-sm) var(--space-md)",
+                                  borderRadius: "var(--radius-sm)",
+                                  backgroundColor: "var(--color-surface)",
+                                  border: "1px solid var(--color-border)",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                                  <strong style={{ color: "var(--color-text)", fontSize: "var(--text-small)" }}>{v.word}</strong>
+                                  {v.phonetic && (
+                                    <span style={{
+                                      color: "var(--color-text-muted)",
+                                      fontSize: "var(--text-caption)",
+                                      whiteSpace: "nowrap",
+                                    }}>
+                                      {v.phonetic}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{
+                                  color: "var(--color-text-secondary)",
+                                  fontSize: "var(--text-small)",
+                                  marginTop: "2px",
+                                  lineHeight: "var(--leading-normal)",
+                                }}>
+                                  {v.definition}
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -442,22 +599,71 @@ export default function ReviewPage() {
 
                       {/* Sentence skeleton */}
                       {analysis.sentenceSkeleton && (
-                        <div style={{
-                          padding: "12px 14px", borderRadius: "10px",
-                          backgroundColor: "#f8f9fa", border: "1px solid #eef0f3",
-                        }}>
-                          <span style={labelStyle}>Structure</span>
-                          <div style={{ marginTop: "6px" }}>
-                            <div style={{ display: "flex", gap: "6px", alignItems: "baseline", marginBottom: "4px" }}>
-                              <span style={{ fontSize: "10px", fontWeight: 700, color: "#9a7b5b", textTransform: "uppercase", minWidth: "32px" }}>Core</span>
-                              <span style={{ fontSize: "14px", fontWeight: 600, color: "#1a2530" }}>{analysis.sentenceSkeleton.core}</span>
+                        <div
+                          style={{
+                            padding: "var(--space-md) var(--space-lg)",
+                            borderRadius: "var(--radius-md)",
+                            backgroundColor: "var(--color-surface-alt)",
+                            border: "1px solid var(--color-border)",
+                          }}
+                        >
+                          <span className="section-label">Structure</span>
+                          <div style={{ marginTop: "var(--space-sm)" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "var(--space-sm)",
+                                alignItems: "baseline",
+                                marginBottom: "var(--space-xs)",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "var(--text-tiny)",
+                                  fontWeight: 700,
+                                  color: "var(--color-primary)",
+                                  textTransform: "uppercase",
+                                  minWidth: "32px",
+                                }}
+                              >
+                                Core
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "var(--text-small)",
+                                  fontWeight: 600,
+                                  color: "var(--color-text)",
+                                }}
+                              >
+                                {analysis.sentenceSkeleton.core}
+                              </span>
                             </div>
                             {analysis.sentenceSkeleton.layers.map((layer, i) => (
-                              <div key={i} style={{ display: "flex", gap: "6px", alignItems: "baseline", paddingLeft: "12px", marginBottom: "2px" }}>
-                                <span style={{ fontSize: "10px", fontWeight: 600, color: "#7c5ec0", minWidth: "44px" }}>+ {layer.label}</span>
-                                <span style={{ fontSize: "13px", color: "#2a3a48" }}>
+                              <div
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  gap: "var(--space-sm)",
+                                  alignItems: "baseline",
+                                  paddingLeft: "var(--space-md)",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "var(--text-tiny)",
+                                    fontWeight: 600,
+                                    color: "var(--color-accent-violet)",
+                                    minWidth: "44px",
+                                  }}
+                                >
+                                  + {layer.label}
+                                </span>
+                                <span style={{ fontSize: "var(--text-small)", color: "var(--color-text)" }}>
                                   <strong>{layer.added}</strong>
-                                  <span style={{ color: "#7a8a96", marginLeft: "4px" }}>({layer.explanation})</span>
+                                  <span style={{ color: "var(--color-text-muted)", marginLeft: "var(--space-xs)" }}>
+                                    ({layer.explanation})
+                                  </span>
                                 </span>
                               </div>
                             ))}
@@ -466,7 +672,6 @@ export default function ReviewPage() {
                       )}
                     </div>
                   )}
-
                 </>
               )}
             </>
@@ -481,25 +686,38 @@ export default function ReviewPage() {
 
 function StatCell({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div style={{
-      padding: "12px 14px",
-      backgroundColor: "#fff",
-      textAlign: "center",
-    }}>
-      <div style={{ fontSize: "12px", color: "#7a8a96", marginBottom: "2px" }}>{label}</div>
-      <div style={{
-        fontSize: "22px", fontWeight: 700,
-        color: highlight ? "#c06030" : "#1a2530",
-      }}>{value}</div>
+    <div
+      style={{
+        padding: "var(--space-md) var(--space-lg)",
+        backgroundColor: "var(--color-surface)",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: "var(--text-caption)", color: "var(--color-text-muted)", marginBottom: "2px" }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "22px",
+          fontWeight: 700,
+          color: highlight ? "var(--color-primary)" : "var(--color-text)",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
 
 function MiniStat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div style={{ padding: "10px 12px", backgroundColor: "#fff", textAlign: "center" }}>
-      <div style={{ fontSize: "11px", color: "#7a8a96", marginBottom: "2px" }}>{label}</div>
-      <div style={{ fontSize: "14px", fontWeight: 600, color: color ?? "#1a2530" }}>{value}</div>
+    <div style={{ padding: "var(--space-md)", backgroundColor: "var(--color-surface)", textAlign: "center" }}>
+      <div style={{ fontSize: "var(--text-tiny)", color: "var(--color-text-muted)", marginBottom: "2px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "var(--text-small)", fontWeight: 600, color: color ?? "var(--color-text)" }}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -512,11 +730,3 @@ function formatInterval(nextReviewAt: string): string {
   const days = Math.floor(hours / 24);
   return `${days}d`;
 }
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "10px",
-  fontWeight: 700,
-  letterSpacing: "0.1em",
-  textTransform: "uppercase",
-  color: "#9a7b5b",
-};
