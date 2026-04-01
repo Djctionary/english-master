@@ -1,6 +1,5 @@
 import {
   DEFAULT_LEARNER_ID,
-  buildListeningHighlights,
   getNextReviewStage,
   scheduleNextReviewAt,
 } from "@/lib/review";
@@ -127,11 +126,9 @@ function toReviewState(row: PostgresReviewStateRow): SentenceReviewState {
 }
 
 function toReviewQueueItem(row: PostgresReviewQueueRow): ReviewQueueItem {
-  const sentence = toSentenceRecord(row);
   return {
-    sentence,
+    sentence: toSentenceRecord(row),
     reviewState: toReviewState(row),
-    listeningHighlights: buildListeningHighlights(sentence.analysis),
   };
 }
 
@@ -513,9 +510,12 @@ export async function getReviewQueue(options?: {
     const limit = options?.limit ?? 10;
     const now = options?.now ?? new Date().toISOString();
 
-    const [reviewableCountResult, dueCountResult, skippedNoAudioResult, queueResult] =
+    const [totalCountResult, dueCountResult, masteredCountResult, queueResult] =
       await Promise.all([
         pool.query<{ count: string }>(
+          `SELECT COUNT(*) as count FROM sentences`
+        ),
+        pool.query<{ count: string }>(
           `
             SELECT COUNT(*) as count
             FROM sentences
@@ -523,32 +523,18 @@ export async function getReviewQueue(options?: {
               ON sentence_review_states.sentence_id = sentences.id
              AND sentence_review_states.learner_id = $1
             WHERE sentences.audio_filename IS NOT NULL
+              AND sentence_review_states.next_review_at <= $2
+          `,
+          [learnerId, now]
+        ),
+        pool.query<{ count: string }>(
+          `
+            SELECT COUNT(*) as count
+            FROM sentence_review_states
+            WHERE learner_id = $1
+              AND stage >= 8
           `,
           [learnerId]
-        ),
-        pool.query<{ count: string }>(
-          `
-            SELECT COUNT(*) as count
-            FROM sentences
-            INNER JOIN sentence_review_states
-              ON sentence_review_states.sentence_id = sentences.id
-             AND sentence_review_states.learner_id = $1
-            WHERE sentences.audio_filename IS NOT NULL
-              AND sentence_review_states.next_review_at <= $2
-          `,
-          [learnerId, now]
-        ),
-        pool.query<{ count: string }>(
-          `
-            SELECT COUNT(*) as count
-            FROM sentences
-            INNER JOIN sentence_review_states
-              ON sentence_review_states.sentence_id = sentences.id
-             AND sentence_review_states.learner_id = $1
-            WHERE sentences.audio_filename IS NULL
-              AND sentence_review_states.next_review_at <= $2
-          `,
-          [learnerId, now]
         ),
         pool.query<PostgresReviewQueueRow>(
           `
@@ -583,9 +569,9 @@ export async function getReviewQueue(options?: {
     return {
       learnerId,
       items: queueResult.rows.map(toReviewQueueItem),
+      totalSentences: parseInt(totalCountResult.rows[0].count, 10),
       dueCount: parseInt(dueCountResult.rows[0].count, 10),
-      reviewableCount: parseInt(reviewableCountResult.rows[0].count, 10),
-      skippedNoAudioCount: parseInt(skippedNoAudioResult.rows[0].count, 10),
+      masteredCount: parseInt(masteredCountResult.rows[0].count, 10),
     };
   }
 

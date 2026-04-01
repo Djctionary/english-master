@@ -115,11 +115,10 @@ describe("Review API", () => {
 
     const payload = await response.json();
     expect(payload.dueCount).toBe(1);
-    expect(payload.reviewableCount).toBe(1);
-    expect(payload.skippedNoAudioCount).toBe(1);
+    expect(payload.totalSentences).toBe(2);
+    expect(payload.masteredCount).toBe(0);
     expect(payload.items).toHaveLength(1);
     expect(payload.items[0].sentence.sentence).toBe("Audio due sentence.");
-    expect(payload.items[0].listeningHighlights.length).toBeGreaterThan(0);
   });
 
   it("updates review stage after submitting a result", async () => {

@@ -2,7 +2,6 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import {
   DEFAULT_LEARNER_ID,
-  buildListeningHighlights,
   getNextReviewStage,
   scheduleNextReviewAt,
 } from "@/lib/review";
@@ -223,11 +222,9 @@ function rowToReviewState(row: ReviewStateRow): SentenceReviewState {
 }
 
 function rowToReviewQueueItem(row: ReviewQueueRow): ReviewQueueItem {
-  const sentence = rowToSentenceRecord(row);
   return {
-    sentence,
+    sentence: rowToSentenceRecord(row),
     reviewState: rowToReviewState(row),
-    listeningHighlights: buildListeningHighlights(sentence.analysis),
   };
 }
 
@@ -450,18 +447,9 @@ export function getReviewQueue(options?: {
   const limit = options?.limit ?? 10;
   const now = options?.now ?? new Date().toISOString();
 
-  const reviewableCountRow = database
-    .prepare(
-      `
-        SELECT COUNT(*) as count
-        FROM sentences
-        INNER JOIN sentence_review_states
-          ON sentence_review_states.sentence_id = sentences.id
-         AND sentence_review_states.learner_id = ?
-        WHERE sentences.audio_filename IS NOT NULL
-      `
-    )
-    .get(learnerId) as { count: number };
+  const totalCountRow = database
+    .prepare(`SELECT COUNT(*) as count FROM sentences`)
+    .get() as { count: number };
 
   const dueCountRow = database
     .prepare(
@@ -477,19 +465,16 @@ export function getReviewQueue(options?: {
     )
     .get(learnerId, now) as { count: number };
 
-  const skippedNoAudioRow = database
+  const masteredCountRow = database
     .prepare(
       `
         SELECT COUNT(*) as count
-        FROM sentences
-        INNER JOIN sentence_review_states
-          ON sentence_review_states.sentence_id = sentences.id
-         AND sentence_review_states.learner_id = ?
-        WHERE sentences.audio_filename IS NULL
-          AND sentence_review_states.next_review_at <= ?
+        FROM sentence_review_states
+        WHERE learner_id = ?
+          AND stage >= 8
       `
     )
-    .get(learnerId, now) as { count: number };
+    .get(learnerId) as { count: number };
 
   const rows = database
     .prepare(
@@ -524,9 +509,9 @@ export function getReviewQueue(options?: {
   return {
     learnerId,
     items: rows.map(rowToReviewQueueItem),
+    totalSentences: totalCountRow.count,
     dueCount: dueCountRow.count,
-    reviewableCount: reviewableCountRow.count,
-    skippedNoAudioCount: skippedNoAudioRow.count,
+    masteredCount: masteredCountRow.count,
   };
 }
 

@@ -141,17 +141,6 @@ export interface SentenceTag {
 
 export type ReviewResult = "full" | "partial" | "missed";
 
-export interface ListeningHighlight {
-  /** Stable visual type for lightweight review hints */
-  kind: "pronunciation" | "chunk" | "tip";
-  /** Short label shown above the content */
-  label: string;
-  /** The main text to focus on */
-  text: string;
-  /** Optional supporting note */
-  note?: string;
-}
-
 export interface SentenceReviewState {
   /** Learner/account owner for this review record */
   learnerId: string;
@@ -168,15 +157,14 @@ export interface SentenceReviewState {
 export interface ReviewQueueItem {
   sentence: SentenceRecord;
   reviewState: SentenceReviewState;
-  listeningHighlights: ListeningHighlight[];
 }
 
 export interface ReviewQueueResult {
   learnerId: string;
   items: ReviewQueueItem[];
+  totalSentences: number;
   dueCount: number;
-  reviewableCount: number;
-  skippedNoAudioCount: number;
+  masteredCount: number;
 }
 
 /**

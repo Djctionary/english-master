@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3 — Review Page Overhaul (01/04/2026)
+
+Rebuilt the review experience with better UX and useful content.
+
+- Auto-play audio when navigating to next card
+- Limit audio replay to 3 times per card
+- After choosing a result, show compact breakdown: paraphrase, vocabulary, sentence skeleton
+- Replace stat blocks with: Total, Due, Reviewed (session), Mastered
+- Session complete screen with encouragement message and stats
+- Remove useless "listening anchors" (pronunciation anchor, key chunk, listening tip)
+- Modern, minimal UI: cleaner cards, unified stat bar, refined typography
+- "Next" button inline with "Replay" in card header for faster flow
+- Gracefully handle old data with empty/verbose analysis fields
+
+---
+
 ## v0.2 — Learn Page Cleanup + TTS & Model Upgrade (29/03/2026)
 
 Streamlined analysis output and upgraded infrastructure.

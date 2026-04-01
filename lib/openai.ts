@@ -39,7 +39,7 @@ Step 1 — Clauses: identify each clause with type and role.
 
 Step 2 — Phrase-level chunking of CORRECTED sentence: exact text (copied verbatim), grammatical role. Cover every word in exactly one chunk. Leave description empty string.
 
-Step 3 — Vocabulary (above CET-4, ~3500 words): word, IPA, POS, concise definition (1 sentence), usage note, example sentence, and 2-4 common collocations (e.g. "rain heavily", "breathe heavily"). Set difficultyReason to empty string.
+Step 3 — Vocabulary (above CET-6): word, IPA, POS, concise definition (1 sentence), usage note, example sentence, and 2-4 common collocations (e.g. "rain heavily", "breathe heavily"). Set difficultyReason to empty string.
 
 Step 4 — Structure analysis: set clauseConnections, tenseLogic, phraseExplanations all to empty string.
 

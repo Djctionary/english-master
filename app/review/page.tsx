@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AnalysisResult,
   ReviewQueueItem,
   ReviewQueueResult,
   ReviewResult,
@@ -10,25 +11,18 @@ import type {
 } from "@/lib/types";
 
 const CARD_LIMIT = 10;
+const MAX_REPLAYS = 3;
 
-const RESULT_LABELS: Record<ReviewResult, string> = {
-  full: "Fully understood",
-  partial: "Mostly understood",
-  missed: "Missed it",
+const RESULT_CONFIG: Record<ReviewResult, { label: string; color: string; bg: string }> = {
+  full: { label: "Fully understood", color: "#16a34a", bg: "#f0fdf4" },
+  partial: { label: "Mostly understood", color: "#ca8a04", bg: "#fefce8" },
+  missed: { label: "Missed it", color: "#dc2626", bg: "#fef2f2" },
 };
 
-function formatNextReview(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return parsed.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function isValidAnalysis(a: unknown): a is AnalysisResult {
+  if (!a || typeof a !== "object") return false;
+  const obj = a as Record<string, unknown>;
+  return typeof obj.paraphrase === "string" && Array.isArray(obj.vocabulary);
 }
 
 export default function ReviewPage() {
@@ -42,14 +36,12 @@ export default function ReviewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [replayCount, setReplayCount] = useState(0);
+  const [reviewedCount, setReviewedCount] = useState(0);
 
-  const currentItem: ReviewQueueItem | null =
-    queue?.items[currentIndex] ?? null;
-
-  const remainingCount = useMemo(() => {
-    if (!queue) return 0;
-    return Math.max(queue.dueCount - currentIndex, 0);
-  }, [currentIndex, queue]);
+  const currentItem: ReviewQueueItem | null = queue?.items[currentIndex] ?? null;
+  const sessionComplete = queue !== null && !loading && !error && !currentItem;
+  const replaysLeft = MAX_REPLAYS - replayCount;
 
   const progressPercent = useMemo(() => {
     if (!queue || queue.items.length === 0) return 0;
@@ -59,90 +51,93 @@ export default function ReviewPage() {
   async function loadQueue() {
     setLoading(true);
     setError(null);
-
     try {
       const response = await fetch(`/api/review?limit=${CARD_LIMIT}`);
-      if (!response.ok) {
-        throw new Error("Failed to load review queue.");
-      }
-
+      if (!response.ok) throw new Error("Failed to load review queue.");
       const data = (await response.json()) as ReviewQueueResult;
       setQueue(data);
       setCurrentIndex(0);
       setRevealed(false);
       setSelectedResult(null);
       setUpdatedState(null);
+      setReplayCount(0);
+      setReviewedCount(0);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load review queue."
-      );
+      setError(err instanceof Error ? err.message : "Failed to load review queue.");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadQueueSafely() {
-      if (cancelled) return;
-      await loadQueue();
-    }
-
-    void loadQueueSafely();
-
-    return () => {
-      cancelled = true;
-    };
+    void loadQueue();
   }, []);
 
+  // Auto-play audio when current card changes
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !currentItem) return;
 
     audio.pause();
     audio.currentTime = 0;
     audio.load();
     setAudioError(null);
-  }, [currentItem?.sentence.id]);
+    setReplayCount(0);
+
+    const playOnReady = () => {
+      audio.play().catch(() => setAudioError("Audio unavailable."));
+      audio.removeEventListener("canplaythrough", playOnReady);
+    };
+    audio.addEventListener("canplaythrough", playOnReady);
+
+    return () => audio.removeEventListener("canplaythrough", playOnReady);
+  }, [currentItem?.sentence.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleReplay() {
+    if (!revealed && replayCount >= MAX_REPLAYS) return;
     const audio = audioRef.current;
     if (!audio) return;
 
     audio.pause();
     audio.currentTime = 0;
-
     try {
       await audio.play();
+      if (!revealed) setReplayCount((c) => c + 1);
       setAudioError(null);
     } catch {
-      setAudioError("Audio unavailable. Please try again.");
+      setAudioError("Audio unavailable.");
     }
   }
 
   async function handleResult(result: ReviewResult) {
     if (!currentItem || submitting) return;
-
+    const t0 = performance.now();
+    console.log(`[review] handleResult("${result}") start`);
     setSubmitting(true);
     setError(null);
-
     try {
+      const t1 = performance.now();
       const response = await fetch(`/api/review/${currentItem.sentence.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ result }),
       });
-
+      const t2 = performance.now();
+      console.log(`[review] API POST took ${(t2 - t1).toFixed(0)}ms (status ${response.status})`);
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.error ?? "Failed to save review.");
       }
-
       const state = (await response.json()) as SentenceReviewState;
+      const t3 = performance.now();
+      console.log(`[review] JSON parse took ${(t3 - t2).toFixed(0)}ms`);
       setSelectedResult(result);
       setUpdatedState(state);
       setRevealed(true);
+      setReviewedCount((c) => c + 1);
+      const t4 = performance.now();
+      console.log(`[review] setState calls took ${(t4 - t3).toFixed(0)}ms`);
+      console.log(`[review] total handleResult: ${(t4 - t0).toFixed(0)}ms`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save review.");
     } finally {
@@ -151,391 +146,330 @@ export default function ReviewPage() {
   }
 
   function handleNext() {
-    setCurrentIndex((index) => index + 1);
+    setCurrentIndex((i) => i + 1);
     setRevealed(false);
     setSelectedResult(null);
     setUpdatedState(null);
     setAudioError(null);
   }
 
+  const analysis: AnalysisResult | null =
+    currentItem && isValidAnalysis(currentItem.sentence.analysis)
+      ? currentItem.sentence.analysis
+      : null;
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f7f3ee 0%, #f6f7f8 48%, #f2f5f7 100%)",
-        padding: "32px 18px 48px",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "880px",
-          margin: "0 auto",
-          display: "grid",
-          gap: "20px",
-        }}
-      >
-        <section
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "16px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "grid", gap: "8px" }}>
-            <span
-              style={{
-                fontSize: "12px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "#8f6b4e",
-                fontWeight: 700,
-              }}
-            >
+    <main style={{
+      minHeight: "100vh",
+      background: "linear-gradient(180deg, #f8f6f3 0%, #f4f5f7 50%, #f1f3f6 100%)",
+      padding: "32px 16px 64px",
+    }}>
+      <div style={{ maxWidth: "720px", margin: "0 auto", display: "grid", gap: "20px" }}>
+
+        {/* Header */}
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
+          <div>
+            <span style={{ fontSize: "11px", letterSpacing: "0.14em", textTransform: "uppercase", color: "#9a7b5b", fontWeight: 700 }}>
               Review
             </span>
-            <h1
-              style={{
-                fontSize: "clamp(2rem, 5vw, 3.4rem)",
-                lineHeight: 1.05,
-                color: "#1b2a36",
-                maxWidth: "10ch",
-              }}
-            >
-              Listen first. Judge honestly.
+            <h1 style={{ fontSize: "clamp(1.6rem, 4vw, 2.4rem)", lineHeight: 1.1, color: "#1a2530", margin: "4px 0 0" }}>
+              Listen & recall.
             </h1>
-            <p style={{ maxWidth: "56ch", color: "#4f6473" }}>
-              Three choices only: fully understood, mostly understood, or missed.
-              After you choose, the sentence and fixed listening anchors appear.
-            </p>
           </div>
-
-          <nav
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
-            <Link href="/learn" className="ui-button">
-              Learn
-            </Link>
-            <Link
-              href="/review"
-              className="ui-button is-active"
-            >
-              Review
-            </Link>
+          <nav style={{ display: "flex", gap: "8px" }}>
+            <Link href="/learn" className="ui-button">Learn</Link>
+            <Link href="/review" className="ui-button is-active">Review</Link>
           </nav>
-        </section>
+        </header>
 
-        <section
-          style={{
+        {/* Stats bar */}
+        {queue && (
+          <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: "12px",
-          }}
-        >
-          <StatCard label="Due now" value={queue ? String(queue.dueCount) : "—"} />
-          <StatCard label="Reviewable" value={queue ? String(queue.reviewableCount) : "—"} />
-          <StatCard
-            label="Skipped (no audio)"
-            value={queue ? String(queue.skippedNoAudioCount) : "—"}
-          />
-          <StatCard label="Remaining" value={String(remainingCount)} />
-        </section>
-
-        {queue && queue.items.length > 0 && (
-          <section
-            style={{
-              display: "grid",
-              gap: "8px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#587081", fontSize: "14px" }}>
-              <span>Session progress</span>
-              <span>{Math.round(progressPercent)}%</span>
-            </div>
-            <div
-              style={{
-                width: "100%",
-                height: "10px",
-                borderRadius: "999px",
-                backgroundColor: "rgba(200, 209, 216, 0.55)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: `${progressPercent}%`,
-                  height: "100%",
-                  borderRadius: "999px",
-                  background: "linear-gradient(90deg, #c56a3d 0%, #e5a859 100%)",
-                }}
-              />
-            </div>
-          </section>
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "1px",
+            backgroundColor: "#e2e6ea",
+            borderRadius: "14px",
+            overflow: "hidden",
+          }}>
+            <StatCell label="Total" value={queue.totalSentences} />
+            <StatCell label="Due" value={queue.dueCount} highlight />
+            <StatCell label="Reviewed" value={reviewedCount} />
+            <StatCell label="Mastered" value={queue.masteredCount} />
+          </div>
         )}
 
-        <section
-          style={{
-            backgroundColor: "rgba(255,255,255,0.82)",
-            border: "1px solid rgba(215, 222, 229, 0.95)",
-            borderRadius: "28px",
-            padding: "24px",
-            boxShadow: "0 18px 45px rgba(25, 49, 69, 0.08)",
-            minHeight: "420px",
-          }}
-        >
+        {/* Progress bar */}
+        {queue && queue.items.length > 0 && !sessionComplete && (
+          <div style={{ display: "grid", gap: "4px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#7a8a96" }}>
+              <span>Card {Math.min(currentIndex + 1, queue.items.length)} / {queue.items.length}</span>
+              <span>{Math.round(progressPercent)}%</span>
+            </div>
+            <div style={{
+              width: "100%", height: "6px", borderRadius: "99px",
+              backgroundColor: "#e5e7eb", overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${progressPercent}%`, height: "100%", borderRadius: "99px",
+                background: "linear-gradient(90deg, #c06030, #d4944a)",
+                transition: "width 0.3s ease",
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Main card area */}
+        <section style={{
+          backgroundColor: "#fff",
+          border: "1px solid #e5e8ec",
+          borderRadius: "20px",
+          padding: "24px",
+          boxShadow: "0 4px 24px rgba(20, 40, 60, 0.06)",
+          minHeight: "360px",
+          display: "grid",
+          alignContent: "start",
+          gap: "20px",
+        }}>
+
+          {/* Loading */}
           {loading && (
-            <div style={{ color: "#587081", fontSize: "15px" }}>
-              Loading today&apos;s review queue...
-            </div>
+            <p style={{ color: "#7a8a96", fontSize: "15px" }}>Loading review queue...</p>
           )}
 
+          {/* Error */}
           {!loading && error && (
-            <div style={{ display: "grid", gap: "14px" }}>
-              <p style={{ color: "#b42318", fontWeight: 600 }}>{error}</p>
-              <button
-                type="button"
-                onClick={() => void loadQueue()}
-                className="ui-button"
-              >
-                Reload
-              </button>
+            <div style={{ display: "grid", gap: "12px" }}>
+              <p style={{ color: "#dc2626", fontWeight: 600 }}>{error}</p>
+              <button type="button" onClick={() => void loadQueue()} className="ui-button">Reload</button>
             </div>
           )}
 
-          {!loading && !error && !currentItem && (
-            <div style={{ display: "grid", gap: "14px" }}>
-              <h2 style={{ fontSize: "28px", color: "#1d3342" }}>
-                {queue && queue.dueCount > 0 ? "Session complete" : "No sentences due right now"}
+          {/* Session complete */}
+          {sessionComplete && (
+            <div style={{ display: "grid", gap: "16px", textAlign: "center", padding: "32px 0" }}>
+              <div style={{ fontSize: "48px" }}>&#127942;</div>
+              <h2 style={{ fontSize: "24px", color: "#1a2530", fontWeight: 700 }}>
+                {queue.dueCount > 0 ? "Session complete!" : "All caught up!"}
               </h2>
-              <p style={{ color: "#587081", maxWidth: "58ch" }}>
-                {queue && queue.dueCount > 0
-                  ? "You finished the loaded queue. Refresh later when more sentences become due."
-                  : "Your review queue is clear for now. New sentences will show up here once they reach their next scheduled review time."}
+              <p style={{ color: "#5a6a78", maxWidth: "40ch", margin: "0 auto", lineHeight: 1.6 }}>
+                {reviewedCount > 0
+                  ? `You reviewed ${reviewedCount} sentence${reviewedCount === 1 ? "" : "s"} this session. Consistency is how fluency is built.`
+                  : "No sentences are due right now. Come back later when your next review is scheduled."}
               </p>
-              <div>
-                <button
-                  type="button"
-                  onClick={() => void loadQueue()}
-                  className="ui-button"
-                >
+              <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "8px" }}>
+                <button type="button" onClick={() => void loadQueue()} className="ui-button">
                   Refresh queue
                 </button>
+                <Link href="/learn" className="ui-button">Go learn</Link>
               </div>
             </div>
           )}
 
+          {/* Active card */}
           {!loading && !error && currentItem && (
-            <div style={{ display: "grid", gap: "22px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-                <div style={{ display: "grid", gap: "6px" }}>
-                  <span style={{ color: "#8b5e34", fontWeight: 700, fontSize: "13px" }}>
-                    Card {currentIndex + 1} of {queue?.items.length ?? 0}
-                  </span>
-                  <span style={{ color: "#587081", fontSize: "14px" }}>
-                    Current stage {currentItem.reviewState.stage}
-                  </span>
-                </div>
-              </div>
-
+            <>
+              {/* Audio element */}
               <audio
                 ref={audioRef}
-                src={
-                  currentItem.sentence.audioFilename
-                    ? `/api/audio/${currentItem.sentence.audioFilename}`
-                    : undefined
-                }
-                onError={() => setAudioError("Audio unavailable. Please try again.")}
+                src={currentItem.sentence.audioFilename
+                  ? `/api/audio/${currentItem.sentence.audioFilename}`
+                  : undefined}
+                onError={() => setAudioError("Audio unavailable.")}
               />
 
-              <div
-                style={{
-                  borderRadius: "24px",
-                  padding: "26px",
-                  background:
-                    revealed
-                      ? "linear-gradient(180deg, #fef9f2 0%, #ffffff 100%)"
-                      : "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)",
-                  color: "#20323f",
-                  border: "1px solid #e4eaef",
-                  display: "grid",
-                  gap: "18px",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-                  <div
-                    style={{
-                      flex: "1 1 560px",
-                      minWidth: "0",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "block",
-                        marginBottom: "10px",
-                        fontSize: "12px",
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        color: "#8f6b4e",
-                      }}
+              {/* Blind listen / Revealed */}
+              <div style={{
+                borderRadius: "14px",
+                padding: "20px",
+                background: revealed ? "#fafaf8" : "#fafbfc",
+                border: "1px solid #eef0f3",
+                display: "grid",
+                gap: "16px",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <span style={{
+                    fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase",
+                    color: revealed ? "#9a7b5b" : "#7a8a96", fontWeight: 700,
+                  }}>
+                    {revealed ? "Revealed" : "Blind listen"}
+                  </span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={handleReplay}
+                      disabled={!revealed && replaysLeft <= 0}
+                      className="ui-button"
+                      style={{ fontSize: "13px", padding: "6px 14px", opacity: (!revealed && replaysLeft <= 0) ? 0.4 : 1 }}
                     >
-                      {revealed ? "Sentence revealed" : "Blind listen"}
-                    </span>
+                      {revealed ? "Replay" : `Replay (${replaysLeft})`}
+                    </button>
                     {revealed && (
-                      <h2
-                        style={{
-                          fontSize: "clamp(1.4rem, 2.6vw, 2rem)",
-                          lineHeight: 1.35,
-                          maxWidth: "100%",
-                          color: "#1d2d39",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {currentItem.sentence.correctedSentence}
-                      </h2>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleReplay}
-                    className="ui-button"
-                    style={{
-                      alignSelf: "flex-start",
-                      minWidth: "140px",
-                    }}
-                  >
-                    Replay audio
-                  </button>
-                </div>
-
-                {audioError && (
-                  <p style={{ color: "#b42318", fontSize: "13px" }}>
-                    {audioError}
-                  </p>
-                )}
-
-                {!revealed && (
-                  <div style={{ display: "grid", gap: "12px" }}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                        gap: "12px",
-                      }}
-                    >
-                      <ResultButton
-                        label={RESULT_LABELS.full}
-                        accent="#5dd39e"
-                        disabled={submitting}
-                        onClick={() => handleResult("full")}
-                      />
-                      <ResultButton
-                        label={RESULT_LABELS.partial}
-                        accent="#ffba49"
-                        disabled={submitting}
-                        onClick={() => handleResult("partial")}
-                      />
-                      <ResultButton
-                        label={RESULT_LABELS.missed}
-                        accent="#ff6b6b"
-                        disabled={submitting}
-                        onClick={() => handleResult("missed")}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {revealed && (
-                  <div style={{ display: "grid", gap: "18px" }}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                        gap: "12px",
-                      }}
-                    >
-                      <RevealStat
-                        label="Your result"
-                        value={selectedResult ? RESULT_LABELS[selectedResult] : "—"}
-                      />
-                      <RevealStat
-                        label="New stage"
-                        value={updatedState ? `Stage ${updatedState.stage}` : "—"}
-                      />
-                      <RevealStat
-                        label="Next review"
-                        value={updatedState ? formatNextReview(updatedState.nextReviewAt) : "—"}
-                      />
-                    </div>
-
-                    {currentItem.listeningHighlights.length > 0 && (
-                      <div style={{ display: "grid", gap: "12px" }}>
-                        <h3 style={{ fontSize: "18px", color: "#20323f" }}>
-                          Fixed listening anchors
-                        </h3>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-                            gap: "12px",
-                          }}
-                        >
-                          {currentItem.listeningHighlights.map((highlight) => (
-                            <article
-                              key={`${highlight.kind}-${highlight.label}-${highlight.text}`}
-                              style={{
-                                borderRadius: "18px",
-                                padding: "16px",
-                                border: "1px solid #e7ecf0",
-                                backgroundColor: "#fbfcfd",
-                                display: "grid",
-                                gap: "8px",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "12px",
-                                  letterSpacing: "0.08em",
-                                  textTransform: "uppercase",
-                                  color: "#8b5e34",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {highlight.label}
-                              </span>
-                              <p style={{ fontWeight: 700, color: "#20323f" }}>
-                                {highlight.text}
-                              </p>
-                              {highlight.note && (
-                                <p style={{ color: "#587081", fontSize: "14px" }}>
-                                  {highlight.note}
-                                </p>
-                              )}
-                            </article>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <button
                         type="button"
                         onClick={handleNext}
-                        className="ui-button"
+                        style={{
+                          fontSize: "13px",
+                          padding: "6px 18px",
+                          borderRadius: "10px",
+                          border: "none",
+                          backgroundColor: "#1a2530",
+                          color: "#fff",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
                       >
-                        Next sentence
+                        Next &rarr;
                       </button>
-                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {audioError && (
+                  <p style={{ color: "#dc2626", fontSize: "13px", margin: 0 }}>{audioError}</p>
+                )}
+
+                {/* Sentence (shown after reveal) */}
+                {revealed && (
+                  <p style={{
+                    fontSize: "20px", lineHeight: 1.5, fontWeight: 600,
+                    color: "#1a2530", margin: 0,
+                  }}>
+                    {currentItem.sentence.correctedSentence}
+                  </p>
+                )}
+
+                {/* Result buttons (before reveal) */}
+                {!revealed && (
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: "10px",
+                  }}>
+                    {(["full", "partial", "missed"] as ReviewResult[]).map((r) => {
+                      const cfg = RESULT_CONFIG[r];
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => handleResult(r)}
+                          style={{
+                            borderRadius: "12px",
+                            padding: "14px 12px",
+                            border: "1px solid #e5e8ec",
+                            backgroundColor: "#fff",
+                            cursor: submitting ? "not-allowed" : "pointer",
+                            opacity: submitting ? 0.5 : 1,
+                            display: "grid",
+                            gap: "6px",
+                            textAlign: "center",
+                            transition: "background-color 0.15s",
+                          }}
+                        >
+                          <span style={{
+                            width: "10px", height: "10px", borderRadius: "99px",
+                            backgroundColor: cfg.color, margin: "0 auto",
+                          }} />
+                          <span style={{ fontSize: "14px", fontWeight: 600, color: "#2a3a48" }}>
+                            {cfg.label}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            </div>
+
+              {/* After reveal: result + breakdown */}
+              {revealed && (
+                <>
+                  {/* Result feedback */}
+                  {selectedResult && updatedState && (
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: "1px",
+                      backgroundColor: "#e5e8ec",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                    }}>
+                      <MiniStat label="Result" value={RESULT_CONFIG[selectedResult].label} color={RESULT_CONFIG[selectedResult].color} />
+                      <MiniStat label="New stage" value={`${updatedState.stage}`} />
+                      <MiniStat label="Next review" value={formatInterval(updatedState.nextReviewAt)} />
+                    </div>
+                  )}
+
+                  {/* Compact breakdown: paraphrase + vocabulary + skeleton */}
+                  {analysis && (
+                    <div style={{ display: "grid", gap: "14px" }}>
+                      {/* Paraphrase */}
+                      {analysis.paraphrase && (
+                        <div style={{
+                          padding: "12px 14px", borderRadius: "10px",
+                          backgroundColor: "#f8f9fa", border: "1px solid #eef0f3",
+                        }}>
+                          <span style={labelStyle}>Meaning</span>
+                          <p style={{ margin: "4px 0 0", fontSize: "14px", lineHeight: 1.6, color: "#2a3a48" }}>
+                            {analysis.paraphrase}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Vocabulary */}
+                      {analysis.vocabulary.length > 0 && (
+                        <div style={{
+                          padding: "12px 14px", borderRadius: "10px",
+                          backgroundColor: "#f8f9fa", border: "1px solid #eef0f3",
+                        }}>
+                          <span style={labelStyle}>Key vocabulary</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+                            {analysis.vocabulary.map((v, i) => (
+                              <span key={i} style={{
+                                display: "inline-flex", alignItems: "baseline", gap: "4px",
+                                padding: "4px 10px", borderRadius: "8px",
+                                backgroundColor: "#fff", border: "1px solid #e5e8ec",
+                                fontSize: "13px",
+                              }}>
+                                <strong style={{ color: "#1a2530" }}>{v.word}</strong>
+                                {v.phonetic && <span style={{ color: "#9aa5ae", fontSize: "11px" }}>{v.phonetic}</span>}
+                                <span style={{ color: "#5a6a78" }}>— {v.definition}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sentence skeleton */}
+                      {analysis.sentenceSkeleton && (
+                        <div style={{
+                          padding: "12px 14px", borderRadius: "10px",
+                          backgroundColor: "#f8f9fa", border: "1px solid #eef0f3",
+                        }}>
+                          <span style={labelStyle}>Structure</span>
+                          <div style={{ marginTop: "6px" }}>
+                            <div style={{ display: "flex", gap: "6px", alignItems: "baseline", marginBottom: "4px" }}>
+                              <span style={{ fontSize: "10px", fontWeight: 700, color: "#9a7b5b", textTransform: "uppercase", minWidth: "32px" }}>Core</span>
+                              <span style={{ fontSize: "14px", fontWeight: 600, color: "#1a2530" }}>{analysis.sentenceSkeleton.core}</span>
+                            </div>
+                            {analysis.sentenceSkeleton.layers.map((layer, i) => (
+                              <div key={i} style={{ display: "flex", gap: "6px", alignItems: "baseline", paddingLeft: "12px", marginBottom: "2px" }}>
+                                <span style={{ fontSize: "10px", fontWeight: 600, color: "#7c5ec0", minWidth: "44px" }}>+ {layer.label}</span>
+                                <span style={{ fontSize: "13px", color: "#2a3a48" }}>
+                                  <strong>{layer.added}</strong>
+                                  <span style={{ color: "#7a8a96", marginLeft: "4px" }}>({layer.explanation})</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </>
+              )}
+            </>
           )}
         </section>
       </div>
@@ -543,78 +477,46 @@ export default function ReviewPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+/* ---- Helper components ---- */
+
+function StatCell({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div
-      style={{
-        borderRadius: "20px",
-        padding: "16px 18px",
-        backgroundColor: "rgba(255,255,255,0.78)",
-        border: "1px solid rgba(215, 222, 229, 0.95)",
-      }}
-    >
-      <div style={{ color: "#6c8190", fontSize: "13px" }}>{label}</div>
-      <div style={{ color: "#1d3342", fontSize: "28px", fontWeight: 700 }}>
-        {value}
-      </div>
+    <div style={{
+      padding: "12px 14px",
+      backgroundColor: "#fff",
+      textAlign: "center",
+    }}>
+      <div style={{ fontSize: "12px", color: "#7a8a96", marginBottom: "2px" }}>{label}</div>
+      <div style={{
+        fontSize: "22px", fontWeight: 700,
+        color: highlight ? "#c06030" : "#1a2530",
+      }}>{value}</div>
     </div>
   );
 }
 
-function ResultButton({
-  label,
-  accent,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  accent: string;
-  disabled: boolean;
-  onClick: () => void;
-}) {
+function MiniStat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        borderRadius: "18px",
-        padding: "16px 18px",
-        border: "1px solid #dfe5ea",
-        backgroundColor: "#ffffff",
-        color: "#20323f",
-        textAlign: "left",
-        display: "grid",
-        gap: "8px",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-      }}
-    >
-      <span
-        style={{
-          width: "12px",
-          height: "12px",
-          borderRadius: "999px",
-          backgroundColor: accent,
-        }}
-      />
-      <span style={{ fontSize: "17px", fontWeight: 700 }}>{label}</span>
-    </button>
-  );
-}
-
-function RevealStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        borderRadius: "18px",
-        padding: "14px 16px",
-        backgroundColor: "#ffffff",
-        border: "1px solid #dfe5ea",
-      }}
-    >
-      <div style={{ color: "#6c8190", fontSize: "13px" }}>{label}</div>
-      <div style={{ color: "#1d3342", fontWeight: 700 }}>{value}</div>
+    <div style={{ padding: "10px 12px", backgroundColor: "#fff", textAlign: "center" }}>
+      <div style={{ fontSize: "11px", color: "#7a8a96", marginBottom: "2px" }}>{label}</div>
+      <div style={{ fontSize: "14px", fontWeight: 600, color: color ?? "#1a2530" }}>{value}</div>
     </div>
   );
 }
+
+function formatInterval(nextReviewAt: string): string {
+  const ms = new Date(nextReviewAt).getTime() - Date.now();
+  if (ms < 0) return "Now";
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "10px",
+  fontWeight: 700,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "#9a7b5b",
+};
