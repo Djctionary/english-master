@@ -117,7 +117,7 @@ export default function CorrectionComparison({
           fontSize: "var(--text-body)",
           fontWeight: 600,
           marginBottom: "var(--space-md)",
-          color: "#92400E",
+          color: "var(--color-correction-heading)",
         }}
       >
         Corrections
@@ -147,7 +147,7 @@ export default function CorrectionComparison({
             backgroundColor: "var(--color-success-light)",
           }}
         >
-          <div style={{ ...labelStyle, color: "#166534" }}>Corrected</div>
+          <div style={{ ...labelStyle, color: "var(--color-correction-added)" }}>Corrected</div>
           <div>{highlightCorrected(correctedSentence, corrections)}</div>
         </div>
       </div>
@@ -161,5 +161,5 @@ const labelStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.05em",
   marginBottom: "var(--space-sm)" as string,
-  color: "#991B1B",
+  color: "var(--color-correction-removed)",
 };

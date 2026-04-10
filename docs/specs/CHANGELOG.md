@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5 — Light/Dark Theme Switch (10/04/2026)
+
+Added dark mode with system-preference detection and manual toggle.
+
+- **Dark theme tokens:** full dark palette for all `--color-*` and `--shadow-*` variables via `[data-theme="dark"]`
+- **ThemeToggle component:** sun/moon icon button in the page header nav
+- **System preference:** defaults to `prefers-color-scheme`, manual choice persists to `localStorage`
+- **No flash:** blocking `<script>` in `<head>` applies theme before first paint
+- **Hardcoded colors removed:** replaced remaining hex values in `CorrectionComparison` and `ConfirmDialog` with CSS variables
+- **New tokens:** `--color-overlay`, `--color-correction-heading`, `--color-correction-added`, `--color-correction-removed`
+
+---
+
 ## v0.4 — UI/UX Design Overhaul (01/04/2026)
 
 Unified design system across the entire app — "Calm Education" style.

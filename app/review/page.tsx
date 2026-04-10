@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import ThemeToggle from "@/components/ThemeToggle";
 import type {
   AnalysisResult,
   ReviewQueueItem,
@@ -190,13 +191,14 @@ export default function ReviewPage() {
               Listen & recall.
             </h1>
           </div>
-          <nav style={{ display: "flex", gap: "var(--space-sm)" }}>
+          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
             <Link href="/learn" className="ui-button">
               Learn
             </Link>
             <Link href="/review" className="ui-button is-active">
               Review
             </Link>
+            <ThemeToggle />
           </nav>
         </header>
 

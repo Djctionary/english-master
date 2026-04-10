@@ -59,7 +59,7 @@ export default function ConfirmDialog({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(15, 23, 42, 0.4)",
+        backgroundColor: "var(--color-overlay)",
         backdropFilter: "blur(4px)",
         padding: "var(--space-lg)",
       }}

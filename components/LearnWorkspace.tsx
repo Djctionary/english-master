@@ -16,6 +16,7 @@ import AudioPlayer from "@/components/AudioPlayer";
 import SentenceLibrary from "@/components/SentenceLibrary";
 import InlineTagBadge from "@/components/InlineTagBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const PAGE_SIZE = 20;
 
@@ -308,13 +309,14 @@ export default function LearnWorkspace() {
             </h1>
           </div>
 
-          <nav style={{ display: "flex", gap: "var(--space-sm)" }}>
+          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
             <Link href="/learn" className="ui-button is-active">
               Learn
             </Link>
             <Link href="/review" className="ui-button">
               Review
             </Link>
+            <ThemeToggle />
           </nav>
         </section>
 

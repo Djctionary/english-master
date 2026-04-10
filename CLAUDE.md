@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v0.4** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v0.5** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -27,6 +27,7 @@ docs/specs/      — CHANGELOG.md, BACKLOG.md, version specs
 - **DB:** `sentences` + `sentence_review_states` tables. Provider: `DATASTORE_PROVIDER` → `DATABASE_URL` (pg) → SQLite. Auto-migrations in `lib/db.ts`.
 - **Components:** All client-side, hooks-only state, CSS custom properties (design tokens in `globals.css`), `fetch()` to internal API.
 - **Design System:** "Calm Education" style — blue primary (`#2563EB`), Inter font, 8px spacing scale. All colors/sizes use CSS variables (`var(--color-*)`, `var(--text-*)`, `var(--space-*)`). See `docs/specs/v0.4.md` for full token reference.
+- **Theming:** Light/dark mode via `data-theme` attribute on `<html>`. Dark tokens defined in `[data-theme="dark"]` in `globals.css`. `ThemeToggle` component in nav. Preference stored in `localStorage("theme")`, defaults to system `prefers-color-scheme`.
 
 ## Commands
 
