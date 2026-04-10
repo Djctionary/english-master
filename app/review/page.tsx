@@ -124,33 +124,23 @@ export default function ReviewPage() {
 
   async function handleResult(result: ReviewResult) {
     if (!currentItem || submitting) return;
-    const t0 = performance.now();
-    console.log(`[review] handleResult("${result}") start`);
     setSubmitting(true);
     setError(null);
     try {
-      const t1 = performance.now();
       const response = await fetch(`/api/review/${currentItem.sentence.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ result }),
       });
-      const t2 = performance.now();
-      console.log(`[review] API POST took ${(t2 - t1).toFixed(0)}ms (status ${response.status})`);
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.error ?? "Failed to save review.");
       }
       const state = (await response.json()) as SentenceReviewState;
-      const t3 = performance.now();
-      console.log(`[review] JSON parse took ${(t3 - t2).toFixed(0)}ms`);
       setSelectedResult(result);
       setUpdatedState(state);
       setRevealed(true);
       setReviewedCount((c) => c + 1);
-      const t4 = performance.now();
-      console.log(`[review] setState calls took ${(t4 - t3).toFixed(0)}ms`);
-      console.log(`[review] total handleResult: ${(t4 - t0).toFixed(0)}ms`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save review.");
     } finally {
