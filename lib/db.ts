@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import bcrypt from "bcryptjs";
 import fs from "fs";
 import {
   DEFAULT_LEARNER_ID,
@@ -66,14 +67,24 @@ function getDb(): Database.Database {
 
 function createTables(database: Database.Database): void {
   database.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  database.exec(`
     CREATE TABLE IF NOT EXISTS sentences (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sentence TEXT NOT NULL UNIQUE,
+      sentence TEXT NOT NULL,
       corrected_sentence TEXT NOT NULL,
       analysis TEXT NOT NULL,
       audio_filename TEXT,
       tag_type TEXT,
       tag_name TEXT,
+      user_id INTEGER REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
@@ -99,6 +110,9 @@ function runMigrations(database: Database.Database): void {
   migrateAddTagColumns(database);
   migrateCreateReviewStateTable(database);
   migrateBackfillReviewStates(database);
+  migrateAddUserIdColumns(database);
+  migrateDropSentenceUniqueConstraint(database);
+  migrateCreateDefaultUser(database);
 }
 
 export function initDatabase(): void {
@@ -187,6 +201,98 @@ function migrateBackfillReviewStates(database: Database.Database): void {
     .run(DEFAULT_LEARNER_ID, now, now, now, DEFAULT_LEARNER_ID);
 }
 
+function migrateAddUserIdColumns(database: Database.Database): void {
+  try {
+    database.exec("ALTER TABLE sentences ADD COLUMN user_id INTEGER REFERENCES users(id)");
+  } catch {
+    // Column already exists
+  }
+}
+
+function migrateDropSentenceUniqueConstraint(database: Database.Database): void {
+  // Check if the old UNIQUE index exists on sentences.sentence
+  const idx = database
+    .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='sentences' AND sql LIKE '%UNIQUE%'")
+    .get() as { name: string } | undefined;
+
+  if (idx) {
+    // SQLite can't drop column constraints directly; recreate the table
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS sentences_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sentence TEXT NOT NULL,
+        corrected_sentence TEXT NOT NULL,
+        analysis TEXT NOT NULL,
+        audio_filename TEXT,
+        tag_type TEXT,
+        tag_name TEXT,
+        user_id INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT OR IGNORE INTO sentences_new SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, user_id, created_at FROM sentences;
+      DROP TABLE sentences;
+      ALTER TABLE sentences_new RENAME TO sentences;
+    `);
+  }
+}
+
+function migrateCreateDefaultUser(database: Database.Database): void {
+  // Create "vergil" user if not exists, assign all orphaned data
+  const existing = database
+    .prepare("SELECT id FROM users WHERE username = ?")
+    .get("vergil") as { id: number } | undefined;
+
+  if (!existing) {
+    const hash = bcrypt.hashSync("yamato", 10);
+    const result = database
+      .prepare("INSERT OR IGNORE INTO users (username, password_hash) VALUES (?, ?)")
+      .run("vergil", hash);
+
+    if (result.changes > 0) {
+      const userId = result.lastInsertRowid as number;
+      // Assign all existing sentences to vergil
+      database.prepare("UPDATE sentences SET user_id = ? WHERE user_id IS NULL").run(userId);
+      // Update review states: change old learner_id to vergil's user id
+      database
+        .prepare("UPDATE sentence_review_states SET learner_id = ? WHERE learner_id = ?")
+        .run(String(userId), DEFAULT_LEARNER_ID);
+    }
+  } else {
+    // Ensure any orphaned data gets assigned
+    database.prepare("UPDATE sentences SET user_id = ? WHERE user_id IS NULL").run(existing.id);
+  }
+}
+
+// ── User queries ──
+
+export function getUserByUsername(username: string): { id: number; username: string; password_hash: string } | undefined {
+  const database = getDb();
+  return database
+    .prepare("SELECT id, username, password_hash FROM users WHERE username = ?")
+    .get(username) as { id: number; username: string; password_hash: string } | undefined;
+}
+
+export function createUser(username: string, passwordHash: string): { id: number; username: string } {
+  const database = getDb();
+  const result = database
+    .prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)")
+    .run(username, passwordHash);
+  return { id: result.lastInsertRowid as number, username };
+}
+
+export function getUserCount(): number {
+  const database = getDb();
+  const row = database.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
+  return row.count;
+}
+
+export function getUserById(id: number): { id: number; username: string } | undefined {
+  const database = getDb();
+  return database
+    .prepare("SELECT id, username FROM users WHERE id = ?")
+    .get(id) as { id: number; username: string } | undefined;
+}
+
 function rowToSentenceRecord(row: SentenceRow): SentenceRecord {
   let parsedAnalysis: AnalysisResult;
   try {
@@ -272,18 +378,21 @@ function getSentenceReviewState(
   return rowToReviewState(row);
 }
 
-export function findSentenceByText(sentence: string): SentenceRecord | undefined {
+export function findSentenceByText(sentence: string, userId?: number): SentenceRecord | undefined {
   const database = getDb();
-  const row = database
-    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences WHERE sentence = ?`)
-    .get(sentence) as SentenceRow | undefined;
+  const sql = userId
+    ? `SELECT ${SENTENCE_SELECT} FROM sentences WHERE sentence = ? AND user_id = ?`
+    : `SELECT ${SENTENCE_SELECT} FROM sentences WHERE sentence = ?`;
+  const params = userId ? [sentence, userId] : [sentence];
+  const row = database.prepare(sql).get(...params) as SentenceRow | undefined;
 
   if (!row) return undefined;
   return rowToSentenceRecord(row);
 }
 
-export function insertSentence(record: Omit<SentenceRecord, "id">): SentenceRecord {
+export function insertSentence(record: Omit<SentenceRecord, "id">, userId?: number): SentenceRecord {
   const database = getDb();
+  const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
   const result = database
     .prepare(
       `
@@ -294,8 +403,9 @@ export function insertSentence(record: Omit<SentenceRecord, "id">): SentenceReco
           audio_filename,
           tag_type,
           tag_name,
+          user_id,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
@@ -305,11 +415,12 @@ export function insertSentence(record: Omit<SentenceRecord, "id">): SentenceReco
       record.audioFilename,
       record.tag?.type ?? null,
       record.tag?.name ?? null,
+      userId ?? null,
       record.createdAt
     );
 
   const insertedId = result.lastInsertRowid as number;
-  ensureReviewStateExists(database, insertedId, record.createdAt);
+  ensureReviewStateExists(database, insertedId, record.createdAt, learnerId);
 
   return {
     id: insertedId,
@@ -322,11 +433,12 @@ export function insertSentence(record: Omit<SentenceRecord, "id">): SentenceReco
   };
 }
 
-export function getAllSentences(): SentenceRecord[] {
+export function getAllSentences(userId?: number): SentenceRecord[] {
   const database = getDb();
-  const rows = database
-    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences ORDER BY created_at DESC, id DESC`)
-    .all() as SentenceRow[];
+  const sql = userId
+    ? `SELECT ${SENTENCE_SELECT} FROM sentences WHERE user_id = ? ORDER BY created_at DESC, id DESC`
+    : `SELECT ${SENTENCE_SELECT} FROM sentences ORDER BY created_at DESC, id DESC`;
+  const rows = (userId ? database.prepare(sql).all(userId) : database.prepare(sql).all()) as SentenceRow[];
 
   return rows.map(rowToSentenceRecord);
 }
@@ -394,12 +506,16 @@ export function updateSentenceAnalysis(
   return getSentenceById(id);
 }
 
-export function searchSentences(options: SearchOptions = {}): SearchResult {
+export function searchSentences(options: SearchOptions & { userId?: number } = {}): SearchResult {
   const database = getDb();
-  const { query, tagType, tagName, limit = 20, offset = 0 } = options;
+  const { query, tagType, tagName, userId, limit = 20, offset = 0 } = options;
   const conditions: string[] = [];
   const params: unknown[] = [];
 
+  if (userId) {
+    conditions.push("user_id = ?");
+    params.push(userId);
+  }
   if (query) {
     conditions.push("sentence LIKE ?");
     params.push(`%${query}%`);
@@ -439,17 +555,19 @@ export function searchSentences(options: SearchOptions = {}): SearchResult {
 
 export function getReviewQueue(options?: {
   learnerId?: string;
+  userId?: number;
   limit?: number;
   now?: string;
 }): ReviewQueueResult {
   const database = getDb();
-  const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+  const userId = options?.userId;
+  const learnerId = userId ? String(userId) : (options?.learnerId ?? DEFAULT_LEARNER_ID);
   const limit = options?.limit ?? 10;
   const now = options?.now ?? new Date().toISOString();
 
-  const totalCountRow = database
-    .prepare(`SELECT COUNT(*) as count FROM sentences`)
-    .get() as { count: number };
+  const totalCountRow = userId
+    ? database.prepare(`SELECT COUNT(*) as count FROM sentences WHERE user_id = ?`).get(userId) as { count: number }
+    : database.prepare(`SELECT COUNT(*) as count FROM sentences`).get() as { count: number };
 
   const dueCountRow = database
     .prepare(
@@ -520,6 +638,7 @@ export function submitSentenceReview(
   result: ReviewResult,
   options?: {
     learnerId?: string;
+    userId?: number;
     reviewedAt?: string;
   }
 ): SentenceReviewState | undefined {
@@ -527,7 +646,7 @@ export function submitSentenceReview(
   if (!sentence) return undefined;
 
   const database = getDb();
-  const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+  const learnerId = options?.userId ? String(options.userId) : (options?.learnerId ?? DEFAULT_LEARNER_ID);
   const reviewedAt = options?.reviewedAt ?? new Date().toISOString();
 
   ensureReviewStateExists(database, sentenceId, sentence.createdAt, learnerId);

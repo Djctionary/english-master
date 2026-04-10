@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.0-alpha — User Management + Landing Page (10/04/2026)
+
+Multi-user authentication, per-user data isolation, and a public landing page.
+
+- **User auth:** username/password registration and login, bcrypt hashing, JWT in httpOnly cookie (7-day expiry)
+- **Per-user data:** `users` table, `user_id` column on sentences and review states — each user sees only their own data
+- **Data migration:** existing sentences assigned to initial user `vergil`
+- **100-user cap:** registration closes at 100 users, remaining spots shown on landing page
+- **Route protection:** Next.js middleware redirects unauthenticated users; API returns 401
+- **Landing page:** hero ("Sentence is all you need"), advantage comparison table, 4-step how-it-works flow, alpha badge
+- **Auth modal:** floating login/register dialog with tab switching
+- **Username display:** "Hi, {username}" + logout button in learn/review nav
+- **Encouragement:** toast message after 10 reviews in a session, personalized session complete message
+- **New files:** `lib/auth.ts`, `lib/request-user.ts`, `middleware.ts`, `components/AuthModal.tsx`, `components/UserNav.tsx`, `app/api/auth/route.ts`
+
+---
+
 ## v0.5 — Light/Dark Theme Switch (10/04/2026)
 
 Added dark mode with system-preference detection and manual toggle.

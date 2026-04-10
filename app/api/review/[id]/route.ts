@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DEFAULT_LEARNER_ID } from "@/lib/review";
 import { initDatabase, submitSentenceReview } from "@/lib/sentence-store";
+import { getUserIdFromRequest } from "@/lib/request-user";
 import type { ReviewResult } from "@/lib/types";
 
 function isReviewResult(value: unknown): value is ReviewResult {
@@ -40,8 +40,9 @@ export async function POST(
     }
 
     await initDatabase();
+    const userId = await getUserIdFromRequest(request) ?? undefined;
     const state = await submitSentenceReview(id, body.result, {
-      learnerId: DEFAULT_LEARNER_ID,
+      userId,
     });
 
     if (!state) {

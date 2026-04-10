@@ -17,6 +17,7 @@ import SentenceLibrary from "@/components/SentenceLibrary";
 import InlineTagBadge from "@/components/InlineTagBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ThemeToggle from "@/components/ThemeToggle";
+import UserNav from "@/components/UserNav";
 
 const PAGE_SIZE = 20;
 
@@ -309,7 +310,8 @@ export default function LearnWorkspace() {
             </h1>
           </div>
 
-          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+            <UserNav />
             <Link href="/learn" className="ui-button is-active">
               Learn
             </Link>

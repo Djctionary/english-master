@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
+import UserNav from "@/components/UserNav";
 import type {
   AnalysisResult,
   ReviewQueueItem,
@@ -52,6 +53,8 @@ export default function ReviewPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
   const [replayCount, setReplayCount] = useState(0);
   const [reviewedCount, setReviewedCount] = useState(0);
+  const [username, setUsername] = useState<string | null>(null);
+  const [encouragement, setEncouragement] = useState<string | null>(null);
 
   const currentItem: ReviewQueueItem | null = queue?.items[currentIndex] ?? null;
   const sessionComplete = queue !== null && !loading && !error && !currentItem;
@@ -85,7 +88,18 @@ export default function ReviewPage() {
 
   useEffect(() => {
     void loadQueue();
+    fetch("/api/auth").then((r) => r.json()).then((d) => {
+      if (d.user) setUsername(d.user.username);
+    }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (reviewedCount === 10 && username) {
+      setEncouragement(`Great work, ${username}! 10 sentences reviewed — consistency builds fluency.`);
+      const timer = setTimeout(() => setEncouragement(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [reviewedCount, username]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -195,7 +209,8 @@ export default function ReviewPage() {
               Listen & recall.
             </h1>
           </div>
-          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+            <UserNav />
             <Link href="/learn" className="ui-button">
               Learn
             </Link>
@@ -263,6 +278,25 @@ export default function ReviewPage() {
           </div>
         )}
 
+        {/* Encouragement toast */}
+        {encouragement && (
+          <div
+            style={{
+              padding: "var(--space-md) var(--space-lg)",
+              borderRadius: "var(--radius-md)",
+              backgroundColor: "var(--color-success-light)",
+              border: "1px solid var(--color-success-border)",
+              color: "var(--color-success)",
+              fontSize: "var(--text-small)",
+              fontWeight: 600,
+              textAlign: "center",
+              animation: "dialogIn 0.2s ease-out",
+            }}
+          >
+            {encouragement}
+          </div>
+        )}
+
         {/* Main card area */}
         <section
           className="card"
@@ -319,7 +353,7 @@ export default function ReviewPage() {
                 }}
               >
                 {reviewedCount > 0
-                  ? `You reviewed ${reviewedCount} sentence${reviewedCount === 1 ? "" : "s"} this session. Consistency is how fluency is built.`
+                  ? `${username ? `Well done, ${username}! ` : ""}You reviewed ${reviewedCount} sentence${reviewedCount === 1 ? "" : "s"} this session. Consistency is how fluency is built.`
                   : "No sentences are due right now. Come back later when your next review is scheduled."}
               </p>
               <div style={{ display: "flex", gap: "var(--space-md)", justifyContent: "center", marginTop: "var(--space-sm)" }}>

@@ -16,6 +16,7 @@ import type {
 } from "@/lib/types";
 import * as sqliteDb from "@/lib/db";
 import { Pool } from "pg";
+import bcrypt from "bcryptjs";
 
 type Provider = "sqlite" | "postgres";
 type PgPool = Pool;
@@ -186,15 +187,26 @@ async function initPostgresSchema(): Promise<void> {
   postgresInitPromise = (async () => {
     const pool = getPostgresPool();
 
+    // Users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sentences (
         id SERIAL PRIMARY KEY,
-        sentence TEXT NOT NULL UNIQUE,
+        sentence TEXT NOT NULL,
         corrected_sentence TEXT NOT NULL,
         analysis TEXT NOT NULL,
         audio_filename TEXT,
         tag_type TEXT,
         tag_name TEXT,
+        user_id INTEGER REFERENCES users(id),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
@@ -208,6 +220,47 @@ async function initPostgresSchema(): Promise<void> {
     await pool.query(
       `ALTER TABLE sentences ADD COLUMN IF NOT EXISTS tag_name TEXT`
     );
+    await pool.query(
+      `ALTER TABLE sentences ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`
+    );
+
+    // Drop UNIQUE constraint on sentence if it exists (allow different users to have same sentence)
+    await pool.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'sentences_sentence_key' AND conrelid = 'sentences'::regclass
+        ) THEN
+          ALTER TABLE sentences DROP CONSTRAINT sentences_sentence_key;
+        END IF;
+      END $$;
+    `);
+
+    // Create default "vergil" user and assign orphaned data
+    const vergilCheck = await pool.query<{ id: number }>(
+      `SELECT id FROM users WHERE username = 'vergil'`
+    );
+    if (vergilCheck.rows.length === 0) {
+      const hash = bcrypt.hashSync("yamato", 10);
+      const insertResult = await pool.query<{ id: number }>(
+        `INSERT INTO users (username, password_hash) VALUES ('vergil', $1) RETURNING id`,
+        [hash]
+      );
+      const vergilId = insertResult.rows[0].id;
+      await pool.query(
+        `UPDATE sentences SET user_id = $1 WHERE user_id IS NULL`,
+        [vergilId]
+      );
+      await pool.query(
+        `UPDATE sentence_review_states SET learner_id = $1 WHERE learner_id = $2`,
+        [String(vergilId), DEFAULT_LEARNER_ID]
+      );
+    } else {
+      await pool.query(
+        `UPDATE sentences SET user_id = $1 WHERE user_id IS NULL`,
+        [vergilCheck.rows[0].id]
+      );
+    }
 
     await pool.query(
       `UPDATE sentences SET corrected_sentence = sentence WHERE corrected_sentence IS NULL`
@@ -272,38 +325,36 @@ export async function initDatabase(): Promise<void> {
 }
 
 export async function findSentenceByText(
-  sentence: string
+  sentence: string,
+  userId?: number
 ): Promise<SentenceRecord | undefined> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
-    const result = await pool.query<PostgresSentenceRow>(
-      `
-        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-        FROM sentences
-        WHERE sentence = $1
-        LIMIT 1
-      `,
-      [sentence]
-    );
+    const sql = userId
+      ? `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE sentence = $1 AND user_id = $2 LIMIT 1`
+      : `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE sentence = $1 LIMIT 1`;
+    const params = userId ? [sentence, userId] : [sentence];
+    const result = await pool.query<PostgresSentenceRow>(sql, params);
 
     if (result.rows.length === 0) return undefined;
     return toSentenceRecord(result.rows[0]);
   }
 
-  return sqliteDb.findSentenceByText(sentence);
+  return sqliteDb.findSentenceByText(sentence, userId);
 }
 
 export async function insertSentence(
-  record: Omit<SentenceRecord, "id">
+  record: Omit<SentenceRecord, "id">,
+  userId?: number
 ): Promise<SentenceRecord> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
       `
-        INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, user_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
       `,
       [
@@ -313,34 +364,34 @@ export async function insertSentence(
         record.audioFilename,
         record.tag?.type ?? null,
         record.tag?.name ?? null,
+        userId ?? null,
         record.createdAt,
       ]
     );
 
     const saved = toSentenceRecord(result.rows[0]);
-    await ensurePostgresReviewState(pool, saved.id, saved.createdAt);
+    const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
+    await ensurePostgresReviewState(pool, saved.id, saved.createdAt, learnerId);
     return saved;
   }
 
-  return sqliteDb.insertSentence(record);
+  return sqliteDb.insertSentence(record, userId);
 }
 
-export async function getAllSentences(): Promise<SentenceRecord[]> {
+export async function getAllSentences(userId?: number): Promise<SentenceRecord[]> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
-    const result = await pool.query<PostgresSentenceRow>(
-      `
-        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-        FROM sentences
-        ORDER BY created_at DESC, id DESC
-      `
-    );
+    const sql = userId
+      ? `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences WHERE user_id = $1 ORDER BY created_at DESC, id DESC`
+      : `SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at FROM sentences ORDER BY created_at DESC, id DESC`;
+    const params = userId ? [userId] : [];
+    const result = await pool.query<PostgresSentenceRow>(sql, params);
 
     return result.rows.map(toSentenceRecord);
   }
 
-  return sqliteDb.getAllSentences();
+  return sqliteDb.getAllSentences(userId);
 }
 
 export async function getSentenceById(
@@ -447,16 +498,20 @@ export async function updateSentenceAnalysis(
 }
 
 export async function searchSentences(
-  options: SearchOptions = {}
+  options: SearchOptions & { userId?: number } = {}
 ): Promise<SearchResult> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
-    const { query, tagType, tagName, limit = 20, offset = 0 } = options;
+    const { query, tagType, tagName, limit = 20, offset = 0, userId } = options;
     const conditions: string[] = [];
     const params: unknown[] = [];
     let paramIdx = 1;
 
+    if (userId) {
+      conditions.push(`user_id = $${paramIdx++}`);
+      params.push(userId);
+    }
     if (query) {
       conditions.push(`sentence ILIKE $${paramIdx++}`);
       params.push(`%${query}%`);
@@ -500,20 +555,22 @@ export async function searchSentences(
 
 export async function getReviewQueue(options?: {
   learnerId?: string;
+  userId?: number;
   limit?: number;
   now?: string;
 }): Promise<ReviewQueueResult> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
-    const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+    const learnerId = options?.userId ? String(options.userId) : (options?.learnerId ?? DEFAULT_LEARNER_ID);
     const limit = options?.limit ?? 10;
     const now = options?.now ?? new Date().toISOString();
+    const userFilter = options?.userId ? ` WHERE user_id = ${options.userId}` : "";
 
     const [totalCountResult, dueCountResult, masteredCountResult, queueResult] =
       await Promise.all([
         pool.query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM sentences`
+          `SELECT COUNT(*) as count FROM sentences${userFilter}`
         ),
         pool.query<{ count: string }>(
           `
@@ -583,6 +640,7 @@ export async function submitSentenceReview(
   result: ReviewResult,
   options?: {
     learnerId?: string;
+    userId?: number;
     reviewedAt?: string;
   }
 ): Promise<SentenceReviewState | undefined> {
@@ -643,6 +701,70 @@ export async function deleteSentenceById(
   }
 
   return sqliteDb.deleteSentenceById(id);
+}
+
+// ── User management ──
+
+export async function getUserByUsername(
+  username: string
+): Promise<{ id: number; username: string; password_hash: string } | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<{ id: number; username: string; password_hash: string }>(
+      `SELECT id, username, password_hash FROM users WHERE username = $1 LIMIT 1`,
+      [username]
+    );
+    return result.rows[0] ?? undefined;
+  }
+
+  return sqliteDb.getUserByUsername(username);
+}
+
+export async function createUser(
+  username: string,
+  passwordHash: string
+): Promise<{ id: number; username: string }> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<{ id: number; username: string }>(
+      `INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username`,
+      [username, passwordHash]
+    );
+    return result.rows[0];
+  }
+
+  return sqliteDb.createUser(username, passwordHash);
+}
+
+export async function getUserCount(): Promise<number> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM users`
+    );
+    return parseInt(result.rows[0].count, 10);
+  }
+
+  return sqliteDb.getUserCount();
+}
+
+export async function getUserById(
+  id: number
+): Promise<{ id: number; username: string } | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<{ id: number; username: string }>(
+      `SELECT id, username FROM users WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    return result.rows[0] ?? undefined;
+  }
+
+  return sqliteDb.getUserById(id);
 }
 
 export async function closeDatabase(): Promise<void> {

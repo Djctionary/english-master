@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v0.5** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v1.0-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -11,11 +11,12 @@ Next.js 15 (App Router) · React 19 · TypeScript 5 (strict) · SQLite / Postgre
 ## Structure
 
 ```
-app/api/         — analyze, sentences, review, audio endpoints
+app/api/         — analyze, sentences, review, audio, auth endpoints
 app/learn/       — learning page
 app/review/      — review page
-components/      — all "use client" (LearnWorkspace, SentenceLibrary, DetailView, AudioPlayer, etc.)
-lib/             — db.ts, sentence-store.ts, review.ts, openai.ts, types.ts
+components/      — all "use client" (LearnWorkspace, SentenceLibrary, DetailView, AudioPlayer, AuthModal, UserNav, etc.)
+lib/             — db.ts, sentence-store.ts, review.ts, openai.ts, auth.ts, request-user.ts, types.ts
+middleware.ts    — route protection (JWT cookie check)
 __tests__/       — api/, lib/, properties/ (fast-check)
 data/            — sentences.db + audio/
 docs/specs/      — CHANGELOG.md, BACKLOG.md, version specs
@@ -28,6 +29,7 @@ docs/specs/      — CHANGELOG.md, BACKLOG.md, version specs
 - **Components:** All client-side, hooks-only state, CSS custom properties (design tokens in `globals.css`), `fetch()` to internal API.
 - **Design System:** "Calm Education" style — blue primary (`#2563EB`), Inter font, 8px spacing scale. All colors/sizes use CSS variables (`var(--color-*)`, `var(--text-*)`, `var(--space-*)`). See `docs/specs/v0.4.md` for full token reference.
 - **Theming:** Light/dark mode via `data-theme` attribute on `<html>`. Dark tokens defined in `[data-theme="dark"]` in `globals.css`. `ThemeToggle` component in nav. Preference stored in `localStorage("theme")`, defaults to system `prefers-color-scheme`.
+- **Auth:** Username/password, bcrypt, JWT httpOnly cookie (7d). `lib/auth.ts` for crypto, `middleware.ts` for route protection. 100-user cap. `UserNav` component shows username + logout.
 
 ## Commands
 
@@ -40,7 +42,7 @@ npm run test     # Vitest
 
 ## Env Vars
 
-`OPENAI_API_KEY` (required) · `ELEVENLABS_API_KEY` (required, TTS) · `DATABASE_URL` (pg, optional) · `DATASTORE_PROVIDER` (optional) · `ELEVENLABS_VOICE_ID` (optional)
+`OPENAI_API_KEY` (required) · `ELEVENLABS_API_KEY` (required, TTS) · `JWT_SECRET` (recommended for prod) · `DATABASE_URL` (pg, optional) · `DATASTORE_PROVIDER` (optional) · `ELEVENLABS_VOICE_ID` (optional)
 
 ## Iteration Workflow
 

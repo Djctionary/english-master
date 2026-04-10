@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DEFAULT_LEARNER_ID } from "@/lib/review";
 import { getReviewQueue, initDatabase } from "@/lib/sentence-store";
+import { getUserIdFromRequest } from "@/lib/request-user";
 
 export async function GET(request: NextRequest) {
   try {
     await initDatabase();
+    const userId = await getUserIdFromRequest(request) ?? undefined;
 
     const { searchParams } = new URL(request.url);
     const limitParam = searchParams.get("limit");
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const queue = await getReviewQueue({
-      learnerId: DEFAULT_LEARNER_ID,
+      userId,
       limit,
     });
 

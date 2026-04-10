@@ -3,10 +3,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { initDatabase, searchSentences, getAllSentences } from "@/lib/sentence-store";
+import { getUserIdFromRequest } from "@/lib/request-user";
 
 export async function GET(request: NextRequest) {
   try {
     await initDatabase();
+    const userId = await getUserIdFromRequest(request) ?? undefined;
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? undefined;
@@ -19,6 +21,7 @@ export async function GET(request: NextRequest) {
       const result = await searchSentences({
         query: q,
         tagType,
+        userId,
         limit: limit ? parseInt(limit, 10) : 20,
         offset: offset ? parseInt(offset, 10) : 0,
       });
@@ -26,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Backward compatible: no params returns flat array
-    const sentences = await getAllSentences();
+    const sentences = await getAllSentences(userId);
     return NextResponse.json(sentences);
   } catch (error) {
     console.error("Internal server error:", error);

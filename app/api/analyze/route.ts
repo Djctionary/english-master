@@ -9,6 +9,7 @@ import {
   updateSentenceAnalysis,
 } from "@/lib/sentence-store";
 import { analyzeSentence, generateAudio } from "@/lib/openai";
+import { getUserIdFromRequest } from "@/lib/request-user";
 import type { SentenceRecord } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -39,9 +40,10 @@ export async function POST(request: NextRequest) {
   try {
     // Ensure database is initialized
     await initDatabase();
+    const userId = await getUserIdFromRequest(request) ?? undefined;
 
     // Step 2: Check DB for existing sentence — return cached if found (Requirement 5.3)
-    const existing = await findSentenceByText(trimmedSentence);
+    const existing = await findSentenceByText(trimmedSentence, userId);
     if (existing && !forceRegenerate) {
       return NextResponse.json(existing);
     }
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    const savedRecord = await insertSentence(record);
+    const savedRecord = await insertSentence(record, userId);
 
     // Step 6: Return the SentenceRecord
     return NextResponse.json(savedRecord);
