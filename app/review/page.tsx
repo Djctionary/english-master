@@ -14,10 +14,10 @@ import type {
 const CARD_LIMIT = 10;
 const MAX_REPLAYS = 3;
 
-const RESULT_CONFIG: Record<ReviewResult, { label: string; color: string; bg: string }> = {
-  full: { label: "Fully understood", color: "var(--color-success)", bg: "var(--color-success-light)" },
-  partial: { label: "Mostly understood", color: "var(--color-warning)", bg: "var(--color-warning-light)" },
-  missed: { label: "Missed it", color: "var(--color-error)", bg: "var(--color-error-light)" },
+const RESULT_CONFIG: Record<ReviewResult, { label: string; shortLabel: string; color: string; bg: string }> = {
+  full: { label: "Fully understood", shortLabel: "Got it", color: "var(--color-success)", bg: "var(--color-success-light)" },
+  partial: { label: "Mostly understood", shortLabel: "Partial", color: "var(--color-warning)", bg: "var(--color-warning-light)" },
+  missed: { label: "Missed it", shortLabel: "Missed", color: "var(--color-error)", bg: "var(--color-error-light)" },
 };
 
 function isValidAnalysis(a: unknown): a is AnalysisResult {
@@ -26,8 +26,21 @@ function isValidAnalysis(a: unknown): a is AnalysisResult {
   return typeof obj.paraphrase === "string" && Array.isArray(obj.vocabulary);
 }
 
+function useIsMobile(breakpoint = 480) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 export default function ReviewPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const isMobile = useIsMobile();
   const [queue, setQueue] = useState<ReviewQueueResult | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -160,6 +173,7 @@ export default function ReviewPage() {
 
   return (
     <main
+      className="page-container"
       style={{
         minHeight: "100vh",
         backgroundColor: "var(--color-bg)",
@@ -207,7 +221,7 @@ export default function ReviewPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
               gap: "1px",
               backgroundColor: "var(--color-border)",
               borderRadius: "var(--radius-md)",
@@ -437,7 +451,7 @@ export default function ReviewPage() {
                                 color: "var(--color-text)",
                               }}
                             >
-                              {cfg.label}
+                              {isMobile ? cfg.shortLabel : cfg.label}
                             </span>
                           </button>
                         );
@@ -516,11 +530,11 @@ export default function ReviewPage() {
                     >
                       <MiniStat
                         label="Result"
-                        value={RESULT_CONFIG[selectedResult].label}
+                        value={isMobile ? RESULT_CONFIG[selectedResult].shortLabel : RESULT_CONFIG[selectedResult].label}
                         color={RESULT_CONFIG[selectedResult].color}
                       />
-                      <MiniStat label="New stage" value={`${updatedState.stage}`} />
-                      <MiniStat label="Next review" value={formatInterval(updatedState.nextReviewAt)} />
+                      <MiniStat label="Stage" value={`${updatedState.stage}`} />
+                      <MiniStat label="Next" value={formatInterval(updatedState.nextReviewAt)} />
                     </div>
                   )}
 

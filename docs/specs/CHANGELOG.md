@@ -10,6 +10,7 @@ Added dark mode with system-preference detection and manual toggle.
 - **No flash:** blocking `<script>` in `<head>` applies theme before first paint
 - **Hardcoded colors removed:** replaced remaining hex values in `CorrectionComparison` and `ConfirmDialog` with CSS variables
 - **New tokens:** `--color-overlay`, `--color-correction-heading`, `--color-correction-added`, `--color-correction-removed`
+- **Mobile review responsive fix:** stats bar switches to 2x2 grid on small screens; result buttons use short labels ("Got it" / "Partial" / "Missed") below 480px
 
 ---
 
