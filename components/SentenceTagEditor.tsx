@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SentenceTag } from "@/lib/types";
 
 interface SentenceTagEditorProps {
@@ -93,25 +93,17 @@ export default function SentenceTagEditor({
           >
             Choose from existing tags
           </label>
-          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-            <select
-              id="existing-tag-select"
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <TagSelectDropdown
               value={selectedExisting}
-              onChange={(e) => setSelectedExisting(e.target.value)}
+              onChange={setSelectedExisting}
               disabled={isSaving}
-              className="input-base"
-              style={{ minWidth: "240px", width: "auto" }}
-            >
-              <option value="">Select one...</option>
-              {sortedTags.map((tag) => {
-                const value = `${tag.type}|||${tag.name}`;
-                return (
-                  <option key={value} value={value}>
-                    {formatTag(tag)}
-                  </option>
-                );
-              })}
-            </select>
+              placeholder="Select one..."
+              options={sortedTags.map((tag) => ({
+                value: `${tag.type}|||${tag.name}`,
+                label: formatTag(tag),
+              }))}
+            />
             <button
               type="button"
               onClick={applyExistingTag}
@@ -190,4 +182,162 @@ export default function SentenceTagEditor({
       )}
     </div>
   );
+}
+
+function TagSelectDropdown({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+  options: { value: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? placeholder;
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: "240px" }}>
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((p) => !p)}
+        aria-expanded={open}
+        aria-label="Select existing tag"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          width: "100%",
+          padding: "var(--space-sm) var(--space-md)",
+          paddingRight: "var(--space-xl)",
+          fontSize: "var(--text-small)",
+          borderWidth: "1px",
+          borderStyle: "solid",
+          borderColor: open ? "var(--color-primary)" : "var(--color-border)",
+          borderRadius: "var(--radius-sm)",
+          backgroundColor: "var(--color-surface)",
+          color: value ? "var(--color-text)" : "var(--color-text-muted)",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.5 : 1,
+          position: "relative",
+          transition: "border-color var(--transition-fast)",
+          boxShadow: open ? "0 0 0 3px var(--color-primary-light)" : "none",
+          textAlign: "left",
+          minHeight: "38px",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {selectedLabel}
+        </span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            position: "absolute",
+            right: "10px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: "var(--color-text-muted)",
+          }}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Existing tags"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            minWidth: "100%",
+            maxHeight: "200px",
+            overflowY: "auto",
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-sm)",
+            boxShadow: "var(--shadow-md)",
+            zIndex: 100,
+          }}
+        >
+          <button
+            type="button"
+            role="option"
+            aria-selected={!value}
+            onClick={() => { onChange(""); setOpen(false); }}
+            style={tagDropdownItemStyle(!value)}
+            onMouseEnter={(e) => { if (value) e.currentTarget.style.backgroundColor = "var(--color-surface-alt)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = !value ? "var(--color-primary-light)" : "var(--color-surface)"; }}
+          >
+            {placeholder}
+          </button>
+          {options.map((opt) => {
+            const isActive = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                style={tagDropdownItemStyle(isActive)}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = "var(--color-surface-alt)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isActive ? "var(--color-primary-light)" : "var(--color-surface)"; }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function tagDropdownItemStyle(isActive: boolean): React.CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    padding: "var(--space-sm) var(--space-md)",
+    border: "none",
+    backgroundColor: isActive ? "var(--color-primary-light)" : "var(--color-surface)",
+    color: isActive ? "var(--color-primary)" : "var(--color-text)",
+    fontSize: "var(--text-small)",
+    fontWeight: isActive ? 600 : 400,
+    textAlign: "left",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    transition: "background-color var(--transition-fast)",
+  };
 }

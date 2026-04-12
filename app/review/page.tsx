@@ -155,6 +155,9 @@ export default function ReviewPage() {
       setUpdatedState(state);
       setRevealed(true);
       setReviewedCount((c) => c + 1);
+      setQueue((prev) =>
+        prev ? { ...prev, dueCount: Math.max(0, prev.dueCount - 1) } : null
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save review.");
     } finally {
@@ -163,7 +166,12 @@ export default function ReviewPage() {
   }
 
   function handleNext() {
-    setCurrentIndex((i) => i + 1);
+    const nextIndex = currentIndex + 1;
+    if (queue && nextIndex >= queue.items.length && queue.dueCount > 0) {
+      void loadQueue();
+      return;
+    }
+    setCurrentIndex(nextIndex);
     setRevealed(false);
     setSelectedResult(null);
     setUpdatedState(null);

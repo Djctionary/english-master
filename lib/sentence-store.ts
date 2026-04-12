@@ -647,7 +647,7 @@ export async function submitSentenceReview(
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
-    const learnerId = options?.learnerId ?? DEFAULT_LEARNER_ID;
+    const learnerId = options?.userId ? String(options.userId) : (options?.learnerId ?? DEFAULT_LEARNER_ID);
     const reviewedAt = options?.reviewedAt ?? new Date().toISOString();
 
     const sentence = await getSentenceById(sentenceId);
