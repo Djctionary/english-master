@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.1-alpha — UI Refinement (13/04/2026)
+
+Frontend-only visual refresh — no backend changes.
+
+- **Multilingual background:** "Sentence is all you need" in 20 languages scrolls as animated background rows on the landing page, creating cultural texture and depth
+- **Landing page simplified:** removed comparison table, tighter layout with stronger visual hierarchy, staggered entrance animations
+- **Auth modal branded:** gradient header bar with app name and tagline, segmented-control tab switcher replacing underline tabs
+- **User avatar:** circle avatar with gradient and first-letter initial replaces "Hi, {username}" text in nav
+- **Page headers unified:** consistent `.page-header` layout for Learn and Review pages with vertical dividers separating user area, nav links, and theme toggle
+- **Step cards:** gradient number badges replacing flat blue circles
+- **CTA card:** subtle gradient background for the alpha call-to-action
+- **New CSS:** `fadeInUp`, `scrollLeft`, `scrollRight` keyframe animations; `.user-avatar`, `.page-header`, `.auth-modal-header` component classes
+
+---
+
 ## v1.0-alpha — User Management + Landing Page (10/04/2026)
 
 Multi-user authentication, per-user data isolation, and a public landing page.

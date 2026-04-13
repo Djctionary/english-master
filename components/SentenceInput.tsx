@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useRef, useCallback, FormEvent } from "react";
 
 interface SentenceInputProps {
   onSubmit: (sentence: string) => Promise<void>;
@@ -15,6 +15,14 @@ export default function SentenceInput({
 }: SentenceInputProps) {
   const [input, setInput] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -32,17 +40,19 @@ export default function SentenceInput({
     <form onSubmit={handleSubmit} style={{ width: "100%" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => {
             setInput(e.target.value);
             if (validationError) setValidationError(null);
+            autoResize();
           }}
           placeholder="Enter an English sentence..."
           disabled={isLoading}
-          rows={3}
+          rows={2}
           aria-label="Sentence input"
           className="input-base"
-          style={{ resize: "vertical" }}
+          style={{ resize: "none", overflow: "hidden", minHeight: "64px" }}
         />
 
         <button

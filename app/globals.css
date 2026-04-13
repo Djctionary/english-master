@@ -211,8 +211,7 @@ select {
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
-    color var(--transition-fast),
-    transform var(--transition-fast);
+    color var(--transition-fast);
 }
 
 .ui-button.is-active {
@@ -231,11 +230,9 @@ select {
     background-color: var(--color-surface-alt);
     border-color: var(--color-border-strong);
     color: var(--color-text);
-    transform: translateY(-1px);
   }
   .ui-button.is-active:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
-    transform: translateY(-1px);
   }
 }
 
@@ -253,9 +250,7 @@ select {
   font-size: var(--text-small);
   font-weight: var(--weight-semibold);
   cursor: pointer;
-  transition:
-    background-color var(--transition-fast),
-    transform var(--transition-fast);
+  transition: background-color var(--transition-fast);
 }
 
 .btn-primary:disabled {
@@ -266,7 +261,6 @@ select {
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
-    transform: translateY(-1px);
   }
 }
 
@@ -355,6 +349,162 @@ select {
   }
 }
 
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scrollLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes scrollRight {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Landing Page — Multilingual Background
+   ══════════════════════════════════════════════════════════ */
+
+.landing-scroll-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0,0,0,0.4) 15%,
+    rgba(0,0,0,0.6) 40%,
+    rgba(0,0,0,0.6) 60%,
+    rgba(0,0,0,0.4) 85%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0,0,0,0.4) 15%,
+    rgba(0,0,0,0.6) 40%,
+    rgba(0,0,0,0.6) 60%,
+    rgba(0,0,0,0.4) 85%,
+    transparent 100%
+  );
+}
+
+.landing-scroll-row {
+  display: flex;
+  white-space: nowrap;
+  will-change: transform;
+  gap: 32px;
+  padding: 6px 0;
+}
+
+.landing-scroll-row span {
+  flex-shrink: 0;
+  color: var(--color-text);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.landing-scroll-row.scroll-left {
+  animation: scrollLeft var(--scroll-duration, 60s) linear infinite;
+}
+
+.landing-scroll-row.scroll-right {
+  animation: scrollRight var(--scroll-duration, 60s) linear infinite;
+}
+
+/* ══════════════════════════════════════════════════════════
+   User Avatar
+   ══════════════════════════════════════════════════════════ */
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent-violet));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Page Header Bar
+   ══════════════════════════════════════════════════════════ */
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.page-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+}
+
+.page-header-title h1 {
+  font-size: var(--text-display);
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.page-header-nav {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.page-header-divider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Auth Modal — Branded Header
+   ══════════════════════════════════════════════════════════ */
+
+.auth-modal-header {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent-violet));
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  text-align: center;
+}
+
+.auth-modal-header h2 {
+  color: #fff;
+  font-size: var(--text-heading);
+  font-weight: 700;
+  margin: 0 0 var(--space-xs);
+}
+
+.auth-modal-header p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
 /* ══════════════════════════════════════════════════════════
    Responsive
    ══════════════════════════════════════════════════════════ */
@@ -368,6 +518,29 @@ select {
 @media (max-width: 768px) {
   .page-container {
     padding: var(--space-lg) var(--space-md) !important;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-md);
+  }
+
+  .page-header-nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-right: var(--space-xs);
+  }
+
+  .page-header-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .page-header-nav .user-nav-name {
+    display: none;
   }
 
   .detail-view-columns {

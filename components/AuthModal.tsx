@@ -56,7 +56,7 @@ export default function AuthModal({ open, onClose, onSuccess }: AuthModalProps) 
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "var(--color-overlay)",
-        backdropFilter: "blur(4px)",
+        backdropFilter: "blur(6px)",
         padding: "var(--space-lg)",
       }}
       onClick={(e) => {
@@ -70,91 +70,107 @@ export default function AuthModal({ open, onClose, onSuccess }: AuthModalProps) 
           backgroundColor: "var(--color-surface)",
           borderRadius: "var(--radius-lg)",
           boxShadow: "var(--shadow-lg)",
-          padding: "var(--space-xl)",
-          display: "grid",
-          gap: "var(--space-lg)",
-          animation: "dialogIn 0.15s ease-out",
+          overflow: "hidden",
+          animation: "dialogIn 0.2s ease-out",
         }}
       >
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: "var(--space-xs)", borderBottom: "1px solid var(--color-border)", paddingBottom: "var(--space-sm)" }}>
-          {(["login", "register"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => { setTab(t); setError(null); }}
-              style={{
-                flex: 1,
-                padding: "var(--space-sm) var(--space-md)",
-                border: "none",
-                borderBottom: tab === t ? "2px solid var(--color-primary)" : "2px solid transparent",
-                backgroundColor: "transparent",
-                color: tab === t ? "var(--color-primary)" : "var(--color-text-secondary)",
-                fontSize: "var(--text-small)",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "color var(--transition-fast), border-color var(--transition-fast)",
-              }}
-            >
-              {t === "login" ? "Sign in" : "Create account"}
-            </button>
-          ))}
+        {/* Branded header */}
+        <div className="auth-modal-header">
+          <h2>English Master</h2>
+          <p>Sentence is all you need</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-md)" }}>
-          <div style={{ display: "grid", gap: "var(--space-xs)" }}>
-            <label
-              htmlFor="auth-username"
-              style={{ fontSize: "var(--text-small)", fontWeight: 600, color: "var(--color-text-secondary)" }}
-            >
-              Username
-            </label>
-            <input
-              id="auth-username"
-              type="text"
-              className="input-base"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
-              autoComplete="username"
-              autoFocus
-            />
-          </div>
-
-          <div style={{ display: "grid", gap: "var(--space-xs)" }}>
-            <label
-              htmlFor="auth-password"
-              style={{ fontSize: "var(--text-small)", fontWeight: 600, color: "var(--color-text-secondary)" }}
-            >
-              Password
-            </label>
-            <input
-              id="auth-password"
-              type="password"
-              className="input-base"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={tab === "register" ? "At least 4 characters" : "Enter password"}
-              autoComplete={tab === "register" ? "new-password" : "current-password"}
-            />
-          </div>
-
-          {error && (
-            <p style={{ color: "var(--color-error)", fontSize: "var(--text-small)", margin: 0 }}>
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={loading}
-            style={{ width: "100%", minHeight: "44px", fontSize: "var(--text-body)" }}
+        <div style={{ padding: "var(--space-lg) var(--space-xl) var(--space-xl)" }}>
+          {/* Tabs */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 0,
+              borderRadius: "var(--radius-sm)",
+              backgroundColor: "var(--color-surface-alt)",
+              padding: "3px",
+              marginBottom: "var(--space-lg)",
+            }}
           >
-            {loading ? "..." : tab === "login" ? "Sign in" : "Create account"}
-          </button>
-        </form>
+            {(["login", "register"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => { setTab(t); setError(null); }}
+                style={{
+                  padding: "var(--space-sm) var(--space-md)",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  backgroundColor: tab === t ? "var(--color-surface)" : "transparent",
+                  boxShadow: tab === t ? "var(--shadow-sm)" : "none",
+                  color: tab === t ? "var(--color-text)" : "var(--color-text-muted)",
+                  fontSize: "var(--text-small)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all var(--transition-fast)",
+                }}
+              >
+                {t === "login" ? "Sign in" : "Create account"}
+              </button>
+            ))}
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-md)" }}>
+            <div style={{ display: "grid", gap: "var(--space-xs)" }}>
+              <label
+                htmlFor="auth-username"
+                style={{ fontSize: "var(--text-small)", fontWeight: 600, color: "var(--color-text-secondary)" }}
+              >
+                Username
+              </label>
+              <input
+                id="auth-username"
+                type="text"
+                className="input-base"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
+
+            <div style={{ display: "grid", gap: "var(--space-xs)" }}>
+              <label
+                htmlFor="auth-password"
+                style={{ fontSize: "var(--text-small)", fontWeight: 600, color: "var(--color-text-secondary)" }}
+              >
+                Password
+              </label>
+              <input
+                id="auth-password"
+                type="password"
+                className="input-base"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={tab === "register" ? "At least 4 characters" : "Enter password"}
+                autoComplete={tab === "register" ? "new-password" : "current-password"}
+              />
+            </div>
+
+            {error && (
+              <p style={{ color: "var(--color-error)", fontSize: "var(--text-small)", margin: 0 }}>
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading}
+              style={{ width: "100%", minHeight: "44px", fontSize: "var(--text-body)", marginTop: "var(--space-xs)" }}
+            >
+              {loading ? "..." : tab === "login" ? "Sign in" : "Create account"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

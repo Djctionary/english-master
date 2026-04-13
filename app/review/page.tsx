@@ -195,36 +195,20 @@ export default function ReviewPage() {
       <div style={{ maxWidth: "1120px", margin: "0 auto", display: "grid", gap: "var(--space-xl)" }}>
 
         {/* Header */}
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "var(--space-lg)",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <span className="section-label">Review</span>
-            <h1
-              style={{
-                fontSize: "var(--text-display)",
-                lineHeight: "var(--leading-tight)",
-                color: "var(--color-text)",
-                margin: "var(--space-xs) 0 0",
-              }}
-            >
-              Listen & recall.
-            </h1>
+        <header className="page-header">
+          <div className="page-header-title">
+            <h1>Listen & recall.</h1>
           </div>
-          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+          <nav className="page-header-nav">
             <UserNav />
+            <div className="page-header-divider" />
             <Link href="/learn" className="ui-button">
               Learn
             </Link>
             <Link href="/review" className="ui-button is-active">
               Review
             </Link>
+            <div className="page-header-divider" />
             <ThemeToggle />
           </nav>
         </header>

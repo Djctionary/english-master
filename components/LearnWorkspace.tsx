@@ -287,40 +287,24 @@ export default function LearnWorkspace() {
         }}
       >
         {/* Header */}
-        <section
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "var(--space-lg)",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <span className="section-label">Learn</span>
-            <h1
-              style={{
-                fontSize: "var(--text-display)",
-                lineHeight: "var(--leading-tight)",
-                color: "var(--color-text)",
-                margin: "var(--space-xs) 0 0",
-              }}
-            >
-              Analyze & collect.
-            </h1>
+        <header className="page-header">
+          <div className="page-header-title">
+            <h1>Analyze & collect.</h1>
           </div>
 
-          <nav style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+          <nav className="page-header-nav">
             <UserNav />
+            <div className="page-header-divider" />
             <Link href="/learn" className="ui-button is-active">
               Learn
             </Link>
             <Link href="/review" className="ui-button">
               Review
             </Link>
+            <div className="page-header-divider" />
             <ThemeToggle />
           </nav>
-        </section>
+        </header>
 
         {/* Input card */}
         <section className="card" style={{ padding: "var(--space-lg)" }}>

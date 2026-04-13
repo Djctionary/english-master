@@ -33,16 +33,26 @@ export default function UserNav() {
 
   if (!username) return null;
 
+  const initial = username.charAt(0).toUpperCase();
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+      <div className="user-avatar" title={username}>
+        {initial}
+      </div>
       <span
+        className="user-nav-name"
         style={{
           fontSize: "var(--text-small)",
-          color: "var(--color-text-secondary)",
-          fontWeight: 500,
+          color: "var(--color-text)",
+          fontWeight: 600,
+          maxWidth: "100px",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
-        Hi, {username}
+        {username}
       </span>
       <button
         type="button"
@@ -52,16 +62,16 @@ export default function UserNav() {
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "4px 10px",
+          padding: "2px 8px",
           borderRadius: "var(--radius-sm)",
-          border: "1px solid var(--color-border)",
+          border: "none",
           backgroundColor: "transparent",
           color: "var(--color-text-muted)",
           fontSize: "var(--text-caption)",
           fontWeight: 500,
           cursor: loggingOut ? "not-allowed" : "pointer",
           opacity: loggingOut ? 0.5 : 1,
-          transition: "color var(--transition-fast), border-color var(--transition-fast)",
+          transition: "color var(--transition-fast)",
         }}
       >
         Logout
