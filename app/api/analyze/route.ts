@@ -71,11 +71,13 @@ export async function POST(request: NextRequest) {
 
     // Step 4: Call generateAudio — handle TTS failure gracefully (Requirement 3.4)
     let audioFilename: string | null = null;
+    let audioData: Buffer | null = null;
     try {
-      audioFilename = await generateAudio(analysis.correctedSentence);
+      const audio = await generateAudio(analysis.correctedSentence);
+      audioFilename = audio.filename;
+      audioData = audio.data;
     } catch {
       // TTS failure is non-fatal — audioFilename stays null (degraded mode)
-      audioFilename = null;
     }
 
     // Step 5: Store record in database (Requirement 5.1)
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
         correctedSentence: analysis.correctedSentence,
         analysis,
         audioFilename,
+        audioData,
       });
 
       if (!updated) {
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    const savedRecord = await insertSentence(record, userId);
+    const savedRecord = await insertSentence(record, userId, audioData);
 
     // Step 6: Return the SentenceRecord
     return NextResponse.json(savedRecord);

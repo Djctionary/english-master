@@ -1,14 +1,45 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import fs from "fs";
-import path from "path";
-import { GET } from "@/app/api/audio/[filename]/route";
-import { getAudioDir } from "@/lib/storage-paths";
+import Database from "better-sqlite3";
+import {
+  _resetForTesting,
+  initDatabase,
+  closeDatabase,
+  insertSentence,
+  getAudioByFilename,
+} from "@/lib/db";
+import type { AnalysisResult } from "@/lib/types";
 
-const AUDIO_DIR = getAudioDir();
+vi.mock("@/lib/openai", () => ({
+  generateAudio: vi.fn(),
+  generateAudioFilename: vi.fn(),
+}));
+
+import { generateAudio } from "@/lib/openai";
+import { GET } from "@/app/api/audio/[filename]/route";
+
+const mockedAudio = vi.mocked(generateAudio);
+
 const TEST_FILENAME = "a1b2c3d4e5f6a7b8.mp3";
-const TEST_FILEPATH = path.join(AUDIO_DIR, TEST_FILENAME);
 const TEST_AUDIO_CONTENT = Buffer.from([0xff, 0xfb, 0x90, 0x00, 0x01, 0x02]);
+
+function emptyAnalysis(): AnalysisResult {
+  return {
+    originalSentence: "Test.",
+    correctedSentence: "Test.",
+    corrections: [],
+    clauses: [],
+    components: [],
+    vocabulary: [],
+    structureAnalysis: {
+      clauseConnections: "",
+      tenseLogic: "",
+      phraseExplanations: "",
+    },
+    grammarNotes: [],
+    paraphrase: "",
+  };
+}
 
 function buildRequest(filename: string) {
   const url = `http://localhost:3000/api/audio/${filename}`;
@@ -19,19 +50,31 @@ function buildRequest(filename: string) {
 
 describe("GET /api/audio/[filename]", () => {
   beforeEach(() => {
-    if (!fs.existsSync(AUDIO_DIR)) {
-      fs.mkdirSync(AUDIO_DIR, { recursive: true });
-    }
-    fs.writeFileSync(TEST_FILEPATH, TEST_AUDIO_CONTENT);
+    const testDb = new Database(":memory:");
+    testDb.pragma("journal_mode = WAL");
+    _resetForTesting(testDb);
+    initDatabase();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    if (fs.existsSync(TEST_FILEPATH)) {
-      fs.unlinkSync(TEST_FILEPATH);
-    }
+    closeDatabase();
   });
 
-  it("should return audio file with correct Content-Type", async () => {
+  it("should return audio bytes from the database", async () => {
+    insertSentence(
+      {
+        sentence: "Test.",
+        correctedSentence: "Test.",
+        analysis: emptyAnalysis(),
+        audioFilename: TEST_FILENAME,
+        tag: null,
+        createdAt: new Date().toISOString(),
+      },
+      undefined,
+      TEST_AUDIO_CONTENT
+    );
+
     const { request, params } = buildRequest(TEST_FILENAME);
     const res = await GET(request, { params });
 
@@ -45,7 +88,65 @@ describe("GET /api/audio/[filename]", () => {
     expect(Buffer.from(body)).toEqual(TEST_AUDIO_CONTENT);
   });
 
-  it("should return 404 for non-existent file", async () => {
+  it("should lazily regenerate and persist audio when the DB row has no binary", async () => {
+    insertSentence(
+      {
+        sentence: "Hello.",
+        correctedSentence: "Hello.",
+        analysis: emptyAnalysis(),
+        audioFilename: TEST_FILENAME,
+        tag: null,
+        createdAt: new Date().toISOString(),
+      },
+      undefined,
+      null
+    );
+
+    const regenerated = Buffer.from([0xaa, 0xbb, 0xcc]);
+    mockedAudio.mockResolvedValueOnce({
+      filename: TEST_FILENAME,
+      data: regenerated,
+    });
+
+    const { request, params } = buildRequest(TEST_FILENAME);
+    const res = await GET(request, { params });
+
+    expect(res.status).toBe(200);
+    expect(mockedAudio).toHaveBeenCalledWith("Hello.");
+
+    const body = await res.arrayBuffer();
+    expect(Buffer.from(body)).toEqual(regenerated);
+
+    // Subsequent hits read from DB cache — no extra TTS call.
+    const stored = getAudioByFilename(TEST_FILENAME);
+    expect(stored?.data?.equals(regenerated)).toBe(true);
+  });
+
+  it("should return 502 when regeneration fails for a missing binary", async () => {
+    insertSentence(
+      {
+        sentence: "Failing.",
+        correctedSentence: "Failing.",
+        analysis: emptyAnalysis(),
+        audioFilename: TEST_FILENAME,
+        tag: null,
+        createdAt: new Date().toISOString(),
+      },
+      undefined,
+      null
+    );
+
+    mockedAudio.mockRejectedValueOnce(new Error("ElevenLabs down"));
+
+    const { request, params } = buildRequest(TEST_FILENAME);
+    const res = await GET(request, { params });
+
+    expect(res.status).toBe(502);
+    const data = await res.json();
+    expect(data.error).toBe("Audio generation failed");
+  });
+
+  it("should return 404 when no DB row exists for the filename", async () => {
     const { request, params } = buildRequest("0000000000000000.mp3");
     const res = await GET(request, { params });
 
@@ -106,22 +207,5 @@ describe("GET /api/audio/[filename]", () => {
     expect(res.status).toBe(404);
     const data = await res.json();
     expect(data.error).toBe("Audio file not found");
-  });
-
-  it("should return 500 when filesystem throws an error", async () => {
-    const spy = vi.spyOn(fs, "readFileSync").mockImplementation(() => {
-      throw new Error("EACCES: permission denied");
-    });
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const { request, params } = buildRequest(TEST_FILENAME);
-    const res = await GET(request, { params });
-
-    expect(res.status).toBe(500);
-    const data = await res.json();
-    expect(data.error).toBe("Internal server error");
-
-    spy.mockRestore();
-    consoleSpy.mockRestore();
   });
 });

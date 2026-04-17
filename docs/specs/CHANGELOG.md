@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.2-alpha — Audio Persistence Fix + TTS Upgrade (17/04/2026)
+
+Critical fix: audio was being regenerated via ElevenLabs on nearly every playback
+on Vercel because MP3s lived on the ephemeral `/tmp` filesystem. Audio is now
+stored as a BLOB/BYTEA in the database and survives cold starts.
+
+- **Audio stored in database:** new `audio_data` column (BLOB on SQLite, BYTEA on
+  Postgres). Binary persists alongside the sentence record, no filesystem dependency
+- **`generateAudio()` is now pure:** returns `{ filename, data: Buffer }`; the
+  caller decides how to persist. No more `/tmp` writes
+- **`/api/audio/[filename]` serves from the DB:** direct BLOB streaming. For legacy
+  rows without a binary, regenerates once via ElevenLabs and writes back — so each
+  sentence costs one TTS call total, forever
+- **TTS model upgrade:** `eleven_turbo_v2_5` → **`eleven_multilingual_v2`**
+- **Default voice:** Sarah → **`DXFkLCBUTmvXpp2QwZjA`**
+- **New env vars:** `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID` for overrides
+- **HTTP caching:** audio responses set `Cache-Control: public, max-age=31536000,
+  immutable` since filenames are content-addressed (SHA-256 of the sentence)
+- **Removed:** dead `getSentenceByAudioFilename` lookups; the `/tmp` fallback path
+
+---
+
 ## v1.1-alpha — UI Refinement (13/04/2026)
 
 Frontend-only visual refresh — no backend changes.

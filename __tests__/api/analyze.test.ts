@@ -111,7 +111,7 @@ describe("POST /api/analyze", () => {
     it("should return cached record without calling OpenAI", async () => {
       const analysis = makeAnalysis();
       mockedAnalyze.mockResolvedValue(analysis);
-      mockedAudio.mockResolvedValue("abc123.mp3");
+      mockedAudio.mockResolvedValue({ filename: "abc123.mp3", data: Buffer.from([0xff, 0xfb]) });
 
       // First call — stores the record
       await POST(makeRequest({ sentence: "The cat sat." }));
@@ -135,7 +135,7 @@ describe("POST /api/analyze", () => {
     it("should analyze, generate audio, store, and return SentenceRecord", async () => {
       const analysis = makeAnalysis();
       mockedAnalyze.mockResolvedValue(analysis);
-      mockedAudio.mockResolvedValue("hash12345678.mp3");
+      mockedAudio.mockResolvedValue({ filename: "hash12345678.mp3", data: Buffer.from([0xff, 0xfb]) });
 
       const res = await POST(makeRequest({ sentence: "The cat sat." }));
       expect(res.status).toBe(200);
@@ -160,7 +160,7 @@ describe("POST /api/analyze", () => {
         correctedSentence: "Hello world.",
       });
       mockedAnalyze.mockResolvedValue(analysis);
-      mockedAudio.mockResolvedValue("hash.mp3");
+      mockedAudio.mockResolvedValue({ filename: "hash.mp3", data: Buffer.from([0xff, 0xfb]) });
 
       const res = await POST(makeRequest({ sentence: "  Hello world.  " }));
       expect(res.status).toBe(200);
@@ -235,7 +235,7 @@ describe("POST /api/analyze", () => {
     it("should return 500 when insertSentence throws", async () => {
       const analysis = makeAnalysis();
       mockedAnalyze.mockResolvedValue(analysis);
-      mockedAudio.mockResolvedValue("audio.mp3");
+      mockedAudio.mockResolvedValue({ filename: "audio.mp3", data: Buffer.from([0xff, 0xfb]) });
 
       // Dynamically import and spy on insertSentence to simulate DB failure
       const dbModule = await import("@/lib/db");

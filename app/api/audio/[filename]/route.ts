@@ -1,18 +1,31 @@
-// GET /api/audio/[filename] — Serve audio file stream
-// Requirements: 7.4
+// GET /api/audio/[filename] — Serve audio MP3 from the database.
+// Audio binaries are stored in the `sentences.audio_data` column so they
+// survive serverless cold starts (previously a critical bug: files on
+// ephemeral /tmp were wiped between invocations, causing silent ElevenLabs
+// regeneration on every playback).
 
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import { getAudioDir } from "@/lib/storage-paths";
 import { generateAudio } from "@/lib/openai";
 import {
-  getSentenceByAudioFilename,
+  getAudioByFilename,
   initDatabase,
+  saveAudioData,
 } from "@/lib/sentence-store";
 
 /** Valid audio filename pattern: 1+ hex chars followed by .mp3 */
 const FILENAME_PATTERN = /^[a-f0-9]+\.mp3$/;
+
+function audioResponse(data: Buffer): NextResponse {
+  const body = new Uint8Array(data);
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "audio/mpeg",
+      "Content-Length": data.length.toString(),
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
+}
 
 export async function GET(
   _request: NextRequest,
@@ -21,7 +34,6 @@ export async function GET(
   try {
     const { filename } = await params;
 
-    // Security: reject path traversal and invalid filenames
     if (
       !filename ||
       filename.includes("..") ||
@@ -35,47 +47,33 @@ export async function GET(
       );
     }
 
-    const filepath = path.join(getAudioDir(), filename);
+    await initDatabase();
+    const record = await getAudioByFilename(filename);
 
-    // In serverless environments the filesystem is ephemeral. If the MP3 is missing,
-    // recover by regenerating from the persisted sentence record.
-    if (!fs.existsSync(filepath)) {
-      await initDatabase();
-      const record = await getSentenceByAudioFilename(filename);
-
-      if (!record) {
-        return NextResponse.json(
-          { error: "Audio file not found" },
-          { status: 404 }
-        );
-      }
-
-      try {
-        await generateAudio(record.correctedSentence);
-      } catch {
-        return NextResponse.json(
-          { error: "Audio generation failed" },
-          { status: 502 }
-        );
-      }
-    }
-
-    if (!fs.existsSync(filepath)) {
+    if (!record) {
       return NextResponse.json(
         { error: "Audio file not found" },
         { status: 404 }
       );
     }
 
-    const fileBuffer = fs.readFileSync(filepath);
+    if (record.data && record.data.length > 0) {
+      return audioResponse(record.data);
+    }
 
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Length": fileBuffer.length.toString(),
-      },
-    });
+    // Legacy record with no persisted binary — regenerate once, cache forever.
+    let audio;
+    try {
+      audio = await generateAudio(record.correctedSentence);
+    } catch {
+      return NextResponse.json(
+        { error: "Audio generation failed" },
+        { status: 502 }
+      );
+    }
+
+    await saveAudioData(filename, audio.data);
+    return audioResponse(audio.data);
   } catch (error) {
     console.error("Internal server error:", error);
     return NextResponse.json(

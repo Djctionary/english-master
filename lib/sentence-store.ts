@@ -204,6 +204,7 @@ async function initPostgresSchema(): Promise<void> {
         corrected_sentence TEXT NOT NULL,
         analysis TEXT NOT NULL,
         audio_filename TEXT,
+        audio_data BYTEA,
         tag_type TEXT,
         tag_name TEXT,
         user_id INTEGER REFERENCES users(id),
@@ -222,6 +223,9 @@ async function initPostgresSchema(): Promise<void> {
     );
     await pool.query(
       `ALTER TABLE sentences ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`
+    );
+    await pool.query(
+      `ALTER TABLE sentences ADD COLUMN IF NOT EXISTS audio_data BYTEA`
     );
 
     // Drop UNIQUE constraint on sentence if it exists (allow different users to have same sentence)
@@ -346,15 +350,16 @@ export async function findSentenceByText(
 
 export async function insertSentence(
   record: Omit<SentenceRecord, "id">,
-  userId?: number
+  userId?: number,
+  audioData?: Buffer | null
 ): Promise<SentenceRecord> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
     const result = await pool.query<PostgresSentenceRow>(
       `
-        INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, user_id, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO sentences (sentence, corrected_sentence, analysis, audio_filename, audio_data, tag_type, tag_name, user_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
       `,
       [
@@ -362,6 +367,7 @@ export async function insertSentence(
         record.correctedSentence,
         JSON.stringify(record.analysis),
         record.audioFilename,
+        audioData ?? null,
         record.tag?.type ?? null,
         record.tag?.name ?? null,
         userId ?? null,
@@ -375,7 +381,7 @@ export async function insertSentence(
     return saved;
   }
 
-  return sqliteDb.insertSentence(record, userId);
+  return sqliteDb.insertSentence(record, userId, audioData);
 }
 
 export async function getAllSentences(userId?: number): Promise<SentenceRecord[]> {
@@ -417,29 +423,6 @@ export async function getSentenceById(
   return sqliteDb.getSentenceById(id);
 }
 
-export async function getSentenceByAudioFilename(
-  audioFilename: string
-): Promise<SentenceRecord | undefined> {
-  if (resolveProvider() === "postgres") {
-    await initPostgresSchema();
-    const pool = getPostgresPool();
-    const result = await pool.query<PostgresSentenceRow>(
-      `
-        SELECT id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
-        FROM sentences
-        WHERE audio_filename = $1
-        LIMIT 1
-      `,
-      [audioFilename]
-    );
-
-    if (result.rows.length === 0) return undefined;
-    return toSentenceRecord(result.rows[0]);
-  }
-
-  return sqliteDb.getSentenceByAudioFilename(audioFilename);
-}
-
 export async function updateSentenceTag(
   id: number,
   tag: SentenceTag | null
@@ -470,6 +453,7 @@ export async function updateSentenceAnalysis(
     correctedSentence: string;
     analysis: AnalysisResult;
     audioFilename: string | null;
+    audioData?: Buffer | null;
   }
 ): Promise<SentenceRecord | undefined> {
   if (resolveProvider() === "postgres") {
@@ -478,14 +462,15 @@ export async function updateSentenceAnalysis(
     const result = await pool.query<PostgresSentenceRow>(
       `
         UPDATE sentences
-        SET corrected_sentence = $1, analysis = $2, audio_filename = $3
-        WHERE id = $4
+        SET corrected_sentence = $1, analysis = $2, audio_filename = $3, audio_data = $4
+        WHERE id = $5
         RETURNING id, sentence, corrected_sentence, analysis, audio_filename, tag_type, tag_name, created_at
       `,
       [
         payload.correctedSentence,
         JSON.stringify(payload.analysis),
         payload.audioFilename,
+        payload.audioData ?? null,
         id,
       ]
     );
@@ -495,6 +480,45 @@ export async function updateSentenceAnalysis(
   }
 
   return sqliteDb.updateSentenceAnalysis(id, payload);
+}
+
+export async function getAudioByFilename(
+  audioFilename: string
+): Promise<{ data: Buffer | null; correctedSentence: string } | undefined> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<{ audio_data: Buffer | null; corrected_sentence: string }>(
+      `SELECT audio_data, corrected_sentence FROM sentences WHERE audio_filename = $1 LIMIT 1`,
+      [audioFilename]
+    );
+
+    if (result.rows.length === 0) return undefined;
+    const row = result.rows[0];
+    return {
+      data: row.audio_data ?? null,
+      correctedSentence: row.corrected_sentence,
+    };
+  }
+
+  return sqliteDb.getAudioByFilename(audioFilename);
+}
+
+export async function saveAudioData(
+  audioFilename: string,
+  data: Buffer
+): Promise<void> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    await pool.query(
+      `UPDATE sentences SET audio_data = $1 WHERE audio_filename = $2`,
+      [data, audioFilename]
+    );
+    return;
+  }
+
+  sqliteDb.saveAudioData(audioFilename, data);
 }
 
 export async function searchSentences(

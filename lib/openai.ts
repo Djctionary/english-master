@@ -3,10 +3,7 @@
 
 import OpenAI from "openai";
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import { AnalysisResult, analysisResultSchema } from "@/lib/types";
-import { getAudioDir } from "@/lib/storage-paths";
 
 let openaiClient: OpenAI | null = null;
 
@@ -185,36 +182,24 @@ export function generateAudioFilename(sentence: string): string {
   return hash.slice(0, 16) + ".mp3";
 }
 
+export interface GeneratedAudio {
+  filename: string;
+  data: Buffer;
+}
+
 /**
- * Generates audio for an English sentence using ElevenLabs TTS API (Turbo v2.5).
- * Uses SHA-256 hash-based filename and caches audio files to avoid regeneration.
- *
- * @param sentence - The English sentence to generate audio for
- * @returns The audio filename (e.g., "a1b2c3d4e5f6g7h8.mp3")
- * @throws Error if the ElevenLabs TTS API call fails or audio cannot be saved
+ * Generates audio for an English sentence using ElevenLabs TTS API.
+ * Returns the SHA-256 hash-based filename and the MP3 binary buffer.
+ * Persistence is the caller's responsibility — this function is pure (no filesystem I/O).
  */
-export async function generateAudio(sentence: string): Promise<string> {
-  const audioDir = getAudioDir();
-  const filename = generateAudioFilename(sentence);
-  const filepath = path.join(audioDir, filename);
-
-  // Reuse existing audio file if it already exists
-  if (fs.existsSync(filepath)) {
-    return filename;
-  }
-
-  // Ensure the audio directory exists
-  if (!fs.existsSync(audioDir)) {
-    fs.mkdirSync(audioDir, { recursive: true });
-  }
-
+export async function generateAudio(sentence: string): Promise<GeneratedAudio> {
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
   if (!elevenLabsKey) {
     throw new Error("ELEVENLABS_API_KEY is missing");
   }
 
-  // Use "Sarah" voice — mature, confident, natural conversational English
-  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "EXAVITQu4vr4xnSDxMaL";
+  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "DXFkLCBUTmvXpp2QwZjA";
+  const modelId = process.env.ELEVENLABS_MODEL_ID ?? "eleven_multilingual_v2";
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -226,7 +211,7 @@ export async function generateAudio(sentence: string): Promise<string> {
       },
       body: JSON.stringify({
         text: sentence,
-        model_id: "eleven_turbo_v2_5",
+        model_id: modelId,
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75,
@@ -242,8 +227,7 @@ export async function generateAudio(sentence: string): Promise<string> {
   }
 
   const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  fs.writeFileSync(filepath, buffer);
+  const data = Buffer.from(arrayBuffer);
 
-  return filename;
+  return { filename: generateAudioFilename(sentence), data };
 }

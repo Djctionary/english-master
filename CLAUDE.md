@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v1.0-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v1.2-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -18,7 +18,7 @@ components/      — all "use client" (LearnWorkspace, SentenceLibrary, DetailVi
 lib/             — db.ts, sentence-store.ts, review.ts, openai.ts, auth.ts, request-user.ts, types.ts
 middleware.ts    — route protection (JWT cookie check)
 __tests__/       — api/, lib/, properties/ (fast-check)
-data/            — sentences.db + audio/
+data/            — sentences.db (audio stored as BLOB/BYTEA in `sentences.audio_data`)
 docs/specs/      — CHANGELOG.md, BACKLOG.md, version specs
 ```
 
@@ -42,7 +42,7 @@ npm run test     # Vitest
 
 ## Env Vars
 
-`OPENAI_API_KEY` (required) · `ELEVENLABS_API_KEY` (required, TTS) · `JWT_SECRET` (recommended for prod) · `DATABASE_URL` (pg, optional) · `DATASTORE_PROVIDER` (optional) · `ELEVENLABS_VOICE_ID` (optional)
+`OPENAI_API_KEY` (required) · `ELEVENLABS_API_KEY` (required, TTS) · `JWT_SECRET` (recommended for prod) · `DATABASE_URL` (pg, optional) · `DATASTORE_PROVIDER` (optional) · `ELEVENLABS_VOICE_ID` (optional, default `DXFkLCBUTmvXpp2QwZjA`) · `ELEVENLABS_MODEL_ID` (optional, default `eleven_multilingual_v2`)
 
 ## Iteration Workflow
 

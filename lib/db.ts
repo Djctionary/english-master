@@ -32,6 +32,11 @@ type SentenceRow = {
   created_at: string;
 };
 
+type AudioRow = {
+  audio_data: Buffer | null;
+  corrected_sentence: string;
+};
+
 type ReviewStateRow = {
   learner_id: string;
   stage: number;
@@ -82,6 +87,7 @@ function createTables(database: Database.Database): void {
       corrected_sentence TEXT NOT NULL,
       analysis TEXT NOT NULL,
       audio_filename TEXT,
+      audio_data BLOB,
       tag_type TEXT,
       tag_name TEXT,
       user_id INTEGER REFERENCES users(id),
@@ -113,6 +119,7 @@ function runMigrations(database: Database.Database): void {
   migrateAddUserIdColumns(database);
   migrateDropSentenceUniqueConstraint(database);
   migrateCreateDefaultUser(database);
+  migrateAddAudioDataColumn(database);
 }
 
 export function initDatabase(): void {
@@ -233,6 +240,14 @@ function migrateDropSentenceUniqueConstraint(database: Database.Database): void 
       DROP TABLE sentences;
       ALTER TABLE sentences_new RENAME TO sentences;
     `);
+  }
+}
+
+function migrateAddAudioDataColumn(database: Database.Database): void {
+  try {
+    database.exec("ALTER TABLE sentences ADD COLUMN audio_data BLOB");
+  } catch {
+    // Column already exists.
   }
 }
 
@@ -390,7 +405,11 @@ export function findSentenceByText(sentence: string, userId?: number): SentenceR
   return rowToSentenceRecord(row);
 }
 
-export function insertSentence(record: Omit<SentenceRecord, "id">, userId?: number): SentenceRecord {
+export function insertSentence(
+  record: Omit<SentenceRecord, "id">,
+  userId?: number,
+  audioData?: Buffer | null
+): SentenceRecord {
   const database = getDb();
   const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
   const result = database
@@ -401,11 +420,12 @@ export function insertSentence(record: Omit<SentenceRecord, "id">, userId?: numb
           corrected_sentence,
           analysis,
           audio_filename,
+          audio_data,
           tag_type,
           tag_name,
           user_id,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
@@ -413,6 +433,7 @@ export function insertSentence(record: Omit<SentenceRecord, "id">, userId?: numb
       record.correctedSentence,
       JSON.stringify(record.analysis),
       record.audioFilename,
+      audioData ?? null,
       record.tag?.type ?? null,
       record.tag?.name ?? null,
       userId ?? null,
@@ -453,18 +474,6 @@ export function getSentenceById(id: number): SentenceRecord | undefined {
   return rowToSentenceRecord(row);
 }
 
-export function getSentenceByAudioFilename(
-  audioFilename: string
-): SentenceRecord | undefined {
-  const database = getDb();
-  const row = database
-    .prepare(`SELECT ${SENTENCE_SELECT} FROM sentences WHERE audio_filename = ?`)
-    .get(audioFilename) as SentenceRow | undefined;
-
-  if (!row) return undefined;
-  return rowToSentenceRecord(row);
-}
-
 export function updateSentenceTag(
   id: number,
   tag: SentenceTag | null
@@ -486,6 +495,7 @@ export function updateSentenceAnalysis(
     correctedSentence: string;
     analysis: AnalysisResult;
     audioFilename: string | null;
+    audioData?: Buffer | null;
   }
 ): SentenceRecord | undefined {
   const existing = getSentenceById(id);
@@ -494,16 +504,41 @@ export function updateSentenceAnalysis(
   const database = getDb();
   database
     .prepare(
-      "UPDATE sentences SET corrected_sentence = ?, analysis = ?, audio_filename = ? WHERE id = ?"
+      "UPDATE sentences SET corrected_sentence = ?, analysis = ?, audio_filename = ?, audio_data = ? WHERE id = ?"
     )
     .run(
       payload.correctedSentence,
       JSON.stringify(payload.analysis),
       payload.audioFilename,
+      payload.audioData ?? null,
       id
     );
 
   return getSentenceById(id);
+}
+
+export function getAudioByFilename(
+  audioFilename: string
+): { data: Buffer | null; correctedSentence: string } | undefined {
+  const database = getDb();
+  const row = database
+    .prepare(
+      "SELECT audio_data, corrected_sentence FROM sentences WHERE audio_filename = ?"
+    )
+    .get(audioFilename) as AudioRow | undefined;
+
+  if (!row) return undefined;
+  return {
+    data: row.audio_data ?? null,
+    correctedSentence: row.corrected_sentence,
+  };
+}
+
+export function saveAudioData(audioFilename: string, data: Buffer): void {
+  const database = getDb();
+  database
+    .prepare("UPDATE sentences SET audio_data = ? WHERE audio_filename = ?")
+    .run(data, audioFilename);
 }
 
 export function searchSentences(options: SearchOptions & { userId?: number } = {}): SearchResult {

@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { AnalysisResult } from "@/lib/types";
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
-import { getAudioDir } from "@/lib/storage-paths";
 
 // Mock the OpenAI module before importing the service
 vi.mock("openai", () => {
@@ -308,95 +305,68 @@ describe("generateAudioFilename", () => {
 });
 
 describe("generateAudio (lib/openai.ts)", () => {
-  const AUDIO_DIR = getAudioDir();
   const testSentence = "The quick brown fox jumps over the lazy dog.";
-  let testFilename: string;
-  let testFilepath: string;
   const mockFetch = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    testFilename = generateAudioFilename(testSentence);
-    testFilepath = path.join(AUDIO_DIR, testFilename);
-    // Clean up any test file that might exist
-    if (fs.existsSync(testFilepath)) {
-      fs.unlinkSync(testFilepath);
-    }
-    // Set ElevenLabs API key for tests
     process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
-    // Mock global fetch for ElevenLabs API
     vi.stubGlobal("fetch", mockFetch);
   });
 
   afterEach(() => {
-    // Clean up test files
-    if (fs.existsSync(testFilepath)) {
-      fs.unlinkSync(testFilepath);
-    }
     delete process.env.ELEVENLABS_API_KEY;
+    delete process.env.ELEVENLABS_VOICE_ID;
+    delete process.env.ELEVENLABS_MODEL_ID;
     vi.unstubAllGlobals();
   });
 
-  it("should call ElevenLabs TTS API with correct parameters", async () => {
-    const fakeAudioData = new ArrayBuffer(100);
+  it("should call ElevenLabs with the multilingual_v2 model by default", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      arrayBuffer: () => Promise.resolve(fakeAudioData),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
     });
 
     await generateAudio(testSentence);
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toContain("https://api.elevenlabs.io/v1/text-to-speech/");
+    expect(url).toContain("https://api.elevenlabs.io/v1/text-to-speech/DXFkLCBUTmvXpp2QwZjA");
     expect(options.method).toBe("POST");
     expect(options.headers["xi-api-key"]).toBe("test-elevenlabs-key");
     const body = JSON.parse(options.body);
     expect(body.text).toBe(testSentence);
-    expect(body.model_id).toBe("eleven_turbo_v2_5");
+    expect(body.model_id).toBe("eleven_multilingual_v2");
   });
 
-  it("should return the hash-based filename", async () => {
-    const fakeAudioData = new ArrayBuffer(100);
+  it("should honor ELEVENLABS_VOICE_ID and ELEVENLABS_MODEL_ID env overrides", async () => {
+    process.env.ELEVENLABS_VOICE_ID = "custom-voice-id";
+    process.env.ELEVENLABS_MODEL_ID = "eleven_turbo_v2_5";
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      arrayBuffer: () => Promise.resolve(fakeAudioData),
-    });
-
-    const result = await generateAudio(testSentence);
-
-    expect(result).toBe(testFilename);
-    expect(result).toMatch(/^[a-f0-9]{16}\.mp3$/);
-  });
-
-  it("should save the audio file to data/audio/ directory", async () => {
-    const fakeAudioData = new Uint8Array([0xff, 0xfb, 0x90, 0x00]).buffer;
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(fakeAudioData),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(100)),
     });
 
     await generateAudio(testSentence);
 
-    expect(fs.existsSync(testFilepath)).toBe(true);
-    const savedContent = fs.readFileSync(testFilepath);
-    expect(savedContent.length).toBe(4);
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain("/text-to-speech/custom-voice-id");
+    expect(JSON.parse(options.body).model_id).toBe("eleven_turbo_v2_5");
   });
 
-  it("should reuse existing audio file without calling TTS API", async () => {
-    // Create a pre-existing audio file
-    if (!fs.existsSync(AUDIO_DIR)) {
-      fs.mkdirSync(AUDIO_DIR, { recursive: true });
-    }
-    fs.writeFileSync(testFilepath, Buffer.from("existing audio data"));
+  it("should return the hash-based filename and the MP3 buffer", async () => {
+    const bytes = new Uint8Array([0xff, 0xfb, 0x90, 0x00]);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(bytes.buffer),
+    });
 
     const result = await generateAudio(testSentence);
 
-    expect(result).toBe(testFilename);
-    expect(mockFetch).not.toHaveBeenCalled();
-    // Verify the file content was not overwritten
-    const content = fs.readFileSync(testFilepath, "utf-8");
-    expect(content).toBe("existing audio data");
+    expect(result.filename).toBe(generateAudioFilename(testSentence));
+    expect(result.filename).toMatch(/^[a-f0-9]{16}\.mp3$/);
+    expect(Buffer.isBuffer(result.data)).toBe(true);
+    expect(result.data.equals(Buffer.from(bytes))).toBe(true);
   });
 
   it("should throw an error when TTS API call fails", async () => {
@@ -413,16 +383,5 @@ describe("generateAudio (lib/openai.ts)", () => {
     delete process.env.ELEVENLABS_API_KEY;
 
     await expect(generateAudio(testSentence)).rejects.toThrow("ELEVENLABS_API_KEY is missing");
-  });
-
-  it("should create the audio directory if it does not exist", async () => {
-    const fakeAudioData = new ArrayBuffer(50);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(fakeAudioData),
-    });
-
-    const result = await generateAudio(testSentence);
-    expect(fs.existsSync(path.join(AUDIO_DIR, result))).toBe(true);
   });
 });
