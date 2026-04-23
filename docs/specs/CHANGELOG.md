@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.2.1-alpha — iOS Audio Fix + Review Tag Display (24/04/2026)
+
+Bug fixes and a small review UX improvement.
+
+- **iOS audio fix:** removed `audio.load()` call from the card-change effect — it was clearing the iOS audio unlock token, causing silent replay failures. Auto-play now preserves the gesture context acquired on navigation
+- **iOS replay fix:** `handleReplay` is now a synchronous function using `.then/.catch` instead of `async/await`, and no longer calls `audio.pause()` before `play()`. Both changes prevent the "play() resolves but produces no sound" bug on mobile Safari
+- **Audio element:** added `playsInline` and `preload="auto"` attributes for more reliable inline playback on iOS
+- **Tag badge on review cards:** sentences with a tag (e.g. "Game: Arknights") now show a small pill badge on the review card — in the blind-listen state below the replay counter, and in the revealed state next to the "Revealed" label
+
+---
+
 ## v1.2-alpha — Audio Persistence Fix + TTS Upgrade (17/04/2026)
 
 Critical fix: audio was being regenerated via ElevenLabs on nearly every playback

@@ -105,34 +105,50 @@ export default function ReviewPage() {
     const audio = audioRef.current;
     if (!audio || !currentItem) return;
 
-    audio.pause();
-    audio.currentTime = 0;
-    audio.load();
+    // Don't call audio.load() here — React already updated the src attribute,
+    // which triggers the browser to load the new audio. Calling load() explicitly
+    // resets the iOS audio unlock token acquired from the user's navigation gesture,
+    // causing subsequent auto-play and manual replay to fail silently.
     setAudioError(null);
     setReplayCount(0);
 
     const playOnReady = () => {
-      audio.play().catch(() => setAudioError("Audio unavailable."));
+      // Best-effort auto-play; iOS may silently block this if no recent gesture.
+      audio.play().catch(() => {});
       audio.removeEventListener("canplaythrough", playOnReady);
     };
-    audio.addEventListener("canplaythrough", playOnReady);
+
+    if (audio.readyState >= 3) {
+      // Already buffered (cached audio) — play immediately without waiting for event.
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    } else {
+      audio.addEventListener("canplaythrough", playOnReady);
+    }
 
     return () => audio.removeEventListener("canplaythrough", playOnReady);
   }, [currentItem?.sentence.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleReplay() {
+  function handleReplay() {
     if (!revealed && replayCount >= MAX_REPLAYS) return;
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.pause();
+    // Reset position without calling pause() first — on iOS, pause() → play() in
+    // the same handler can cause play() to resolve but produce no audio.
+    // Keep this function synchronous so the iOS user-gesture token is not broken
+    // by async/await before the play() call.
     audio.currentTime = 0;
-    try {
-      await audio.play();
+    const playPromise = audio.play();
+    if (playPromise) {
+      playPromise
+        .then(() => {
+          if (!revealed) setReplayCount((c) => c + 1);
+          setAudioError(null);
+        })
+        .catch(() => setAudioError("Audio unavailable."));
+    } else {
       if (!revealed) setReplayCount((c) => c + 1);
-      setAudioError(null);
-    } catch {
-      setAudioError("Audio unavailable.");
     }
   }
 
@@ -371,6 +387,8 @@ export default function ReviewPage() {
                     : undefined
                 }
                 onError={() => setAudioError("Audio unavailable.")}
+                playsInline
+                preload="auto"
               />
 
               {/* Blind listen / Revealed */}
@@ -415,6 +433,17 @@ export default function ReviewPage() {
                         ? `${replaysLeft} replay${replaysLeft === 1 ? "" : "s"} remaining`
                         : "No replays left"}
                     </div>
+                    {currentItem.sentence.tag && (
+                      <div style={{
+                        fontSize: "var(--text-caption)",
+                        color: "var(--color-text-secondary)",
+                        background: "var(--color-border)",
+                        borderRadius: "var(--radius-full)",
+                        padding: "2px var(--space-sm)",
+                      }}>
+                        {currentItem.sentence.tag.type}: {currentItem.sentence.tag.name}
+                      </div>
+                    )}
                   </div>
 
                   {audioError && (
@@ -498,7 +527,20 @@ export default function ReviewPage() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <span className="section-label">Revealed</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+                      <span className="section-label">Revealed</span>
+                      {currentItem.sentence.tag && (
+                        <span style={{
+                          fontSize: "var(--text-caption)",
+                          color: "var(--color-text-secondary)",
+                          background: "var(--color-border)",
+                          borderRadius: "var(--radius-full)",
+                          padding: "2px var(--space-sm)",
+                        }}>
+                          {currentItem.sentence.tag.type}: {currentItem.sentence.tag.name}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
                       <button type="button" onClick={handleReplay} className="btn-secondary">
                         Replay
