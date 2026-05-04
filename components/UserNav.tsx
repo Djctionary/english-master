@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 const VOICES = [
@@ -12,12 +13,14 @@ const DEFAULT_VOICE_ID = "DXFkLCBUTmvXpp2QwZjA";
 
 export default function UserNav() {
   const router = useRouter();
+  const avatarRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState<string>(DEFAULT_VOICE_ID);
   const [loggingOut, setLoggingOut] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savingVoice, setSavingVoice] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     fetch("/api/auth")
@@ -33,14 +36,27 @@ export default function UserNav() {
 
   useEffect(() => {
     if (!settingsOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setSettingsOpen(false);
-      }
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      const target = e.target as Node;
+      if (avatarRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setSettingsOpen(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
   }, [settingsOpen]);
+
+  function handleAvatarClick() {
+    if (!settingsOpen && avatarRef.current) {
+      const r = avatarRef.current.getBoundingClientRect();
+      setPanelPos({ top: r.bottom + 8, left: r.left });
+    }
+    setSettingsOpen((v) => !v);
+  }
 
   async function handleVoiceChange(newVoiceId: string) {
     if (newVoiceId === voiceId || savingVoice) return;
@@ -75,66 +91,21 @@ export default function UserNav() {
 
   const initial = username.charAt(0).toUpperCase();
 
-  return (
-    <div ref={panelRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-      <div
-        className="user-avatar"
-        title={username}
-        onClick={() => setSettingsOpen((v) => !v)}
-        style={{ cursor: "pointer" }}
-      >
-        {initial}
-      </div>
-      <span
-        className="user-nav-name"
-        style={{
-          fontSize: "var(--text-small)",
-          color: "var(--color-text)",
-          fontWeight: 600,
-          maxWidth: "100px",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {username}
-      </span>
-      <button
-        type="button"
-        onClick={handleLogout}
-        disabled={loggingOut}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2px 8px",
-          borderRadius: "var(--radius-sm)",
-          border: "none",
-          backgroundColor: "transparent",
-          color: "var(--color-text-muted)",
-          fontSize: "var(--text-caption)",
-          fontWeight: 500,
-          cursor: loggingOut ? "not-allowed" : "pointer",
-          opacity: loggingOut ? 0.5 : 1,
-          transition: "color var(--transition-fast)",
-        }}
-      >
-        Logout
-      </button>
-
-      {settingsOpen && (
+  const panel = settingsOpen
+    ? createPortal(
         <div
+          ref={panelRef}
           style={{
-            position: "absolute",
-            top: "calc(100% + 8px)",
-            right: 0,
+            position: "fixed",
+            top: panelPos.top,
+            left: panelPos.left,
             width: 220,
             backgroundColor: "var(--color-surface)",
             border: "1px solid var(--color-border)",
             borderRadius: "var(--radius-md)",
             boxShadow: "var(--shadow-md)",
             padding: "var(--space-md)",
-            zIndex: 100,
+            zIndex: 9999,
           }}
         >
           <div
@@ -165,7 +136,7 @@ export default function UserNav() {
                     padding: "6px 10px",
                     borderRadius: "var(--radius-sm)",
                     border: `1px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`,
-                    backgroundColor: active ? "var(--color-primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent))" : "transparent",
+                    backgroundColor: active ? "color-mix(in srgb, var(--color-primary) 10%, transparent)" : "transparent",
                     color: active ? "var(--color-primary)" : "var(--color-text)",
                     fontSize: "var(--text-small)",
                     fontWeight: active ? 600 : 400,
@@ -182,8 +153,62 @@ export default function UserNav() {
               );
             })}
           </div>
-        </div>
-      )}
-    </div>
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+        <button
+          ref={avatarRef}
+          type="button"
+          className="user-avatar"
+          title={username}
+          onClick={handleAvatarClick}
+          style={{ cursor: "pointer", border: "none", padding: 0, font: "inherit" }}
+        >
+          {initial}
+        </button>
+        <span
+          className="user-nav-name"
+          style={{
+            fontSize: "var(--text-small)",
+            color: "var(--color-text)",
+            fontWeight: 600,
+            maxWidth: "100px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {username}
+        </span>
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "2px 8px",
+            borderRadius: "var(--radius-sm)",
+            border: "none",
+            backgroundColor: "transparent",
+            color: "var(--color-text-muted)",
+            fontSize: "var(--text-caption)",
+            fontWeight: 500,
+            cursor: loggingOut ? "not-allowed" : "pointer",
+            opacity: loggingOut ? 0.5 : 1,
+            transition: "color var(--transition-fast)",
+          }}
+        >
+          Logout
+        </button>
+      </div>
+      {panel}
+    </>
   );
 }
