@@ -5,6 +5,7 @@ import {
   createUser,
   getUserCount,
   getUserById,
+  updateUserVoiceId,
 } from "@/lib/sentence-store";
 import {
   hashPassword,
@@ -98,6 +99,35 @@ export async function POST(request: NextRequest) {
   }
 }
 
+const ALLOWED_VOICE_IDS = ["DXFkLCBUTmvXpp2QwZjA", "ljX1ZrXuDIIRVcmiVSyR"];
+
+// PATCH /api/auth — update user settings (voice preference)
+export async function PATCH(request: NextRequest) {
+  try {
+    await initDatabase();
+    const auth = await getAuthFromCookie();
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    let body: { voiceId?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    const { voiceId } = body;
+    if (!voiceId || !ALLOWED_VOICE_IDS.includes(voiceId)) {
+      return NextResponse.json({ error: "Invalid voice ID" }, { status: 400 });
+    }
+
+    await updateUserVoiceId(auth.userId, voiceId);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Auth error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 // GET /api/auth — get current user + stats
 export async function GET() {
   try {
@@ -116,7 +146,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      user: { id: user.id, username: user.username },
+      user: { id: user.id, username: user.username, tts_voice_id: user.tts_voice_id ?? null },
       spotsRemaining: MAX_USERS - count,
     });
   } catch (error) {

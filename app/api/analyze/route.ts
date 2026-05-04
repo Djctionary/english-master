@@ -7,6 +7,7 @@ import {
   insertSentence,
   initDatabase,
   updateSentenceAnalysis,
+  getUserVoiceId,
 } from "@/lib/sentence-store";
 import { analyzeSentence, generateAudio } from "@/lib/openai";
 import { getUserIdFromRequest } from "@/lib/request-user";
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     // Ensure database is initialized
     await initDatabase();
     const userId = await getUserIdFromRequest(request) ?? undefined;
+    const userVoiceId = userId ? (await getUserVoiceId(userId) ?? undefined) : undefined;
 
     // Step 2: Check DB for existing sentence — return cached if found (Requirement 5.3)
     const existing = await findSentenceByText(trimmedSentence, userId);
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
     let audioFilename: string | null = null;
     let audioData: Buffer | null = null;
     try {
-      const audio = await generateAudio(analysis.correctedSentence);
+      const audio = await generateAudio(analysis.correctedSentence, userVoiceId);
       audioFilename = audio.filename;
       audioData = audio.data;
     } catch {

@@ -177,8 +177,9 @@ export async function analyzeSentence(
  * @param sentence - The sentence to hash
  * @returns The generated filename (e.g., "a1b2c3d4e5f6g7h8.mp3")
  */
-export function generateAudioFilename(sentence: string): string {
-  const hash = crypto.createHash("sha256").update(sentence).digest("hex");
+export function generateAudioFilename(sentence: string, voiceId?: string): string {
+  const input = voiceId ? `${sentence}:${voiceId}` : sentence;
+  const hash = crypto.createHash("sha256").update(input).digest("hex");
   return hash.slice(0, 16) + ".mp3";
 }
 
@@ -192,17 +193,17 @@ export interface GeneratedAudio {
  * Returns the SHA-256 hash-based filename and the MP3 binary buffer.
  * Persistence is the caller's responsibility — this function is pure (no filesystem I/O).
  */
-export async function generateAudio(sentence: string): Promise<GeneratedAudio> {
+export async function generateAudio(sentence: string, voiceId?: string): Promise<GeneratedAudio> {
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
   if (!elevenLabsKey) {
     throw new Error("ELEVENLABS_API_KEY is missing");
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "DXFkLCBUTmvXpp2QwZjA";
-  const modelId = process.env.ELEVENLABS_MODEL_ID ?? "eleven_multilingual_v2";
+  const resolvedVoiceId = voiceId ?? "DXFkLCBUTmvXpp2QwZjA";
+  const modelId = "eleven_multilingual_v2";
 
   const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${resolvedVoiceId}`,
     {
       method: "POST",
       headers: {
@@ -229,5 +230,5 @@ export async function generateAudio(sentence: string): Promise<GeneratedAudio> {
   const arrayBuffer = await response.arrayBuffer();
   const data = Buffer.from(arrayBuffer);
 
-  return { filename: generateAudioFilename(sentence), data };
+  return { filename: generateAudioFilename(sentence, resolvedVoiceId), data };
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.3.0-alpha — TTS Voice Selection (05/05/2026)
+
+Per-user TTS voice preference, selectable from the user settings panel.
+
+- **Voice selection UI:** click the avatar in the nav to open a settings panel with two voice options — Female · American and Male · American
+- **Per-user preference:** voice choice stored in `users.tts_voice_id` column (DB migration runs automatically on first boot)
+- **New audio only:** existing sentence audio is unaffected; new analyses use the selected voice
+- **Voice-aware filename:** audio filename is now SHA-256 of `sentence:voiceId`, so different voices cache independently and never overwrite each other
+- **Hardcoded voices:** `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID` env vars removed — voice IDs and model are now constants in code
+- **API:** `PATCH /api/auth` `{ voiceId }` to update preference; `GET /api/auth` now returns `tts_voice_id`
+
+---
+
 ## v1.2.1-alpha — iOS Audio Fix + Review Tag Display (24/04/2026)
 
 Bug fixes and a small review UX improvement.

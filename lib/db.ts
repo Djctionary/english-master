@@ -120,6 +120,15 @@ function runMigrations(database: Database.Database): void {
   migrateDropSentenceUniqueConstraint(database);
   migrateCreateDefaultUser(database);
   migrateAddAudioDataColumn(database);
+  migrateAddTtsVoiceIdColumn(database);
+}
+
+function migrateAddTtsVoiceIdColumn(database: Database.Database): void {
+  try {
+    database.exec("ALTER TABLE users ADD COLUMN tts_voice_id TEXT");
+  } catch {
+    // Column already exists.
+  }
 }
 
 export function initDatabase(): void {
@@ -301,11 +310,24 @@ export function getUserCount(): number {
   return row.count;
 }
 
-export function getUserById(id: number): { id: number; username: string } | undefined {
+export function getUserById(id: number): { id: number; username: string; tts_voice_id: string | null } | undefined {
   const database = getDb();
   return database
-    .prepare("SELECT id, username FROM users WHERE id = ?")
-    .get(id) as { id: number; username: string } | undefined;
+    .prepare("SELECT id, username, tts_voice_id FROM users WHERE id = ?")
+    .get(id) as { id: number; username: string; tts_voice_id: string | null } | undefined;
+}
+
+export function getUserVoiceId(userId: number): string | null {
+  const database = getDb();
+  const row = database
+    .prepare("SELECT tts_voice_id FROM users WHERE id = ?")
+    .get(userId) as { tts_voice_id: string | null } | undefined;
+  return row?.tts_voice_id ?? null;
+}
+
+export function updateUserVoiceId(userId: number, voiceId: string): void {
+  const database = getDb();
+  database.prepare("UPDATE users SET tts_voice_id = ? WHERE id = ?").run(voiceId, userId);
 }
 
 function rowToSentenceRecord(row: SentenceRow): SentenceRecord {

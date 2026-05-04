@@ -227,6 +227,9 @@ async function initPostgresSchema(): Promise<void> {
     await pool.query(
       `ALTER TABLE sentences ADD COLUMN IF NOT EXISTS audio_data BYTEA`
     );
+    await pool.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS tts_voice_id TEXT`
+    );
 
     // Drop UNIQUE constraint on sentence if it exists (allow different users to have same sentence)
     await pool.query(`
@@ -777,18 +780,43 @@ export async function getUserCount(): Promise<number> {
 
 export async function getUserById(
   id: number
-): Promise<{ id: number; username: string } | undefined> {
+): Promise<{ id: number; username: string; tts_voice_id: string | null } | undefined> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
-    const result = await pool.query<{ id: number; username: string }>(
-      `SELECT id, username FROM users WHERE id = $1 LIMIT 1`,
+    const result = await pool.query<{ id: number; username: string; tts_voice_id: string | null }>(
+      `SELECT id, username, tts_voice_id FROM users WHERE id = $1 LIMIT 1`,
       [id]
     );
     return result.rows[0] ?? undefined;
   }
 
   return sqliteDb.getUserById(id);
+}
+
+export async function getUserVoiceId(userId: number): Promise<string | null> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const result = await pool.query<{ tts_voice_id: string | null }>(
+      `SELECT tts_voice_id FROM users WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+    return result.rows[0]?.tts_voice_id ?? null;
+  }
+
+  return sqliteDb.getUserVoiceId(userId);
+}
+
+export async function updateUserVoiceId(userId: number, voiceId: string): Promise<void> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    await pool.query(`UPDATE users SET tts_voice_id = $1 WHERE id = $2`, [voiceId, userId]);
+    return;
+  }
+
+  sqliteDb.updateUserVoiceId(userId, voiceId);
 }
 
 export async function closeDatabase(): Promise<void> {

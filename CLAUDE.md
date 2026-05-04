@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v1.2.1-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v1.3.0-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -42,7 +42,7 @@ npm run test     # Vitest
 
 ## Env Vars
 
-`OPENAI_API_KEY` (required) · `ELEVENLABS_API_KEY` (required, TTS) · `JWT_SECRET` (recommended for prod) · `DATABASE_URL` (pg, optional) · `DATASTORE_PROVIDER` (optional) · `ELEVENLABS_VOICE_ID` (optional, default `DXFkLCBUTmvXpp2QwZjA`) · `ELEVENLABS_MODEL_ID` (optional, default `eleven_multilingual_v2`)
+`OPENAI_API_KEY` (required) · `ELEVENLABS_API_KEY` (required, TTS) · `JWT_SECRET` (recommended for prod) · `DATABASE_URL` (pg, optional) · `DATASTORE_PROVIDER` (optional)
 
 ## Iteration Workflow
 
