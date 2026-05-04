@@ -13,6 +13,7 @@ Ideas and known issues — not yet scheduled for any version.
 - [ ] Lifetime member system implementation
 - [x] Show the Tag which user created when review, as a hint — done in v1.2.1-alpha
 - [x] TTS voice selection (Female/Male American) in user settings — done in v1.3.0-alpha
+- [x] Mobile settings panel fix (createPortal, touch-safe) — done in v1.3.0-alpha
 
 ## Future Plan
 

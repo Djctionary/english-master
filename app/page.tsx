@@ -161,7 +161,7 @@ export default function LandingPage() {
               backdropFilter: "blur(8px)",
             }}
           >
-            V1.2.1 Alpha &middot; {spotsRemaining !== null ? `${spotsRemaining} spots remaining` : "Internal Test"}
+            V1.3.0 Alpha &middot; {spotsRemaining !== null ? `${spotsRemaining} spots remaining` : "Internal Test"}
           </div>
 
           <h1
@@ -300,7 +300,7 @@ export default function LandingPage() {
           }}
         >
           <h3 style={{ fontSize: "var(--text-body)", fontWeight: 700 }}>
-            V1.2.1 Alpha &middot; Internal Test
+            V1.3.0 Alpha &middot; Internal Test
           </h3>
           <p
             style={{
