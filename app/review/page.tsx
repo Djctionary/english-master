@@ -224,6 +224,9 @@ export default function ReviewPage() {
             <Link href="/review" className="ui-button is-active">
               Review
             </Link>
+            <Link href="/progress" className="ui-button">
+              Progress
+            </Link>
             <div className="page-header-divider" />
             <ThemeToggle />
           </nav>

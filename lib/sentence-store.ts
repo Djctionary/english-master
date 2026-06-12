@@ -5,6 +5,7 @@ import {
 } from "@/lib/review";
 import type {
   AnalysisResult,
+  ProgressRow,
   ReviewQueueItem,
   ReviewQueueResult,
   ReviewResult,
@@ -660,6 +661,41 @@ export async function getReviewQueue(options?: {
   }
 
   return sqliteDb.getReviewQueue(options);
+}
+
+export async function getProgressRows(userId?: number): Promise<ProgressRow[]> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
+    const where = userId ? "WHERE s.user_id = $2" : "";
+    const params = userId ? [learnerId, userId] : [learnerId];
+
+    const result = await pool.query<{
+      created_at: string | Date;
+      audio_filename: string | null;
+      next_review_at: string | Date | null;
+      stage: number | null;
+    }>(
+      `
+        SELECT s.created_at, s.audio_filename, rs.next_review_at, rs.stage
+        FROM sentences s
+        LEFT JOIN sentence_review_states rs
+          ON rs.sentence_id = s.id AND rs.learner_id = $1
+        ${where}
+      `,
+      params
+    );
+
+    return result.rows.map((row) => ({
+      createdAt: normalizeTimestamp(row.created_at) ?? new Date().toISOString(),
+      nextReviewAt: normalizeTimestamp(row.next_review_at),
+      stage: row.stage,
+      hasAudio: row.audio_filename != null,
+    }));
+  }
+
+  return sqliteDb.getProgressRows(userId);
 }
 
 export async function submitSentenceReview(

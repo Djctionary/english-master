@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v1.3.0-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v1.4.0-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -11,11 +11,12 @@ Next.js 15 (App Router) · React 19 · TypeScript 5 (strict) · SQLite / Postgre
 ## Structure
 
 ```
-app/api/         — analyze, sentences, review, audio, auth endpoints
+app/api/         — analyze, sentences, review, audio, auth, progress endpoints
 app/learn/       — learning page
 app/review/      — review page
-components/      — all "use client" (LearnWorkspace, SentenceLibrary, DetailView, AudioPlayer, AuthModal, UserNav, etc.)
-lib/             — db.ts, sentence-store.ts, review.ts, openai.ts, auth.ts, request-user.ts, types.ts
+app/progress/    — learning-progress chart page
+components/      — all "use client" (LearnWorkspace, SentenceLibrary, DetailView, AudioPlayer, AuthModal, UserNav, ProgressChart, etc.)
+lib/             — db.ts, sentence-store.ts, review.ts, progress.ts, openai.ts, auth.ts, request-user.ts, types.ts
 middleware.ts    — route protection (JWT cookie check)
 __tests__/       — api/, lib/, properties/ (fast-check)
 data/            — sentences.db (audio stored as BLOB/BYTEA in `sentences.audio_data`)

@@ -8,6 +8,7 @@ import {
 } from "@/lib/review";
 import type {
   AnalysisResult,
+  ProgressRow,
   ReviewQueueItem,
   ReviewQueueResult,
   ReviewResult,
@@ -688,6 +689,41 @@ export function getReviewQueue(options?: {
     dueCount: dueCountRow.count,
     masteredCount: masteredCountRow.count,
   };
+}
+
+export function getProgressRows(userId?: number): ProgressRow[] {
+  const database = getDb();
+  const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
+  const where = userId ? "WHERE s.user_id = ?" : "";
+  const params = userId ? [learnerId, userId] : [learnerId];
+
+  const rows = database
+    .prepare(
+      `
+        SELECT
+          s.created_at AS created_at,
+          s.audio_filename AS audio_filename,
+          rs.next_review_at AS next_review_at,
+          rs.stage AS stage
+        FROM sentences s
+        LEFT JOIN sentence_review_states rs
+          ON rs.sentence_id = s.id AND rs.learner_id = ?
+        ${where}
+      `
+    )
+    .all(...params) as {
+    created_at: string;
+    audio_filename: string | null;
+    next_review_at: string | null;
+    stage: number | null;
+  }[];
+
+  return rows.map((row) => ({
+    createdAt: row.created_at,
+    nextReviewAt: row.next_review_at,
+    stage: row.stage,
+    hasAudio: row.audio_filename != null,
+  }));
 }
 
 export function submitSentenceReview(

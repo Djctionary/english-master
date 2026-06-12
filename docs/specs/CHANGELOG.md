@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.4.0-alpha — Learning Progress Visualization (12/06/2026)
+
+A new **Progress** page that visualizes your recent learning activity in a single
+combined chart, plus a stat strip summarizing your library at a glance.
+
+- **New `/progress` page:** linked from the Learn and Review nav, route-protected via middleware
+- **Combined chart (one plot, three series):** a hand-rolled, theme-aware SVG combo chart — no charting dependency
+  - **Cumulative learned** — area + line on the left axis, total sentences over time
+  - **Learned that day** — daily bars on the right axis, new sentences added each day
+  - **Due to review** — daily bars; overdue sentences collapse onto today (the "learn ASAP" backlog), upcoming due dates form a short forecast
+  - X axis spans the last 30 days plus a 14-day forecast, with a dashed "today" divider and a hover tooltip per day
+- **Stat strip:** Total · Added today · Due now · Mastered
+- **`GET /api/progress`:** user-scoped, returns the daily series; works on both SQLite and Postgres
+- **Honest by design:** day-by-day *historical* due counts aren't reconstructable (we store each sentence's current due date, not its history), so the due series is overdue-collapsed-to-today plus a forward forecast
+- **New files:** `app/progress/page.tsx`, `app/api/progress/route.ts`, `components/ProgressChart.tsx`, `lib/progress.ts`
+
+---
+
 ## v1.3.0-alpha — TTS Voice Selection (05/05/2026)
 
 Per-user TTS voice preference, selectable from the user settings panel.

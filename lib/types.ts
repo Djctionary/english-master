@@ -168,6 +168,51 @@ export interface ReviewQueueResult {
 }
 
 /**
+ * One sentence's raw timeline fields, used to compute learning-progress series.
+ */
+export interface ProgressRow {
+  /** When the sentence was added to the library */
+  createdAt: string;
+  /** Current next-due timestamp from the review state (null if no state) */
+  nextReviewAt: string | null;
+  /** Current review stage (null if no state) */
+  stage: number | null;
+  /** Whether the sentence has generated audio (i.e. is actually reviewable) */
+  hasAudio: boolean;
+}
+
+/**
+ * A single day on the progress chart's X axis.
+ */
+export interface ProgressPoint {
+  /** YYYY-MM-DD (UTC) */
+  date: string;
+  /** Sentences added on this day */
+  added: number;
+  /** Total sentences learned up to and including this day */
+  cumulative: number;
+  /** Sentences due on this day. Overdue sentences collapse onto today. */
+  dueForecast: number;
+  /** True for days after today (forecast region) */
+  isFuture: boolean;
+  /** True for today */
+  isToday: boolean;
+}
+
+/**
+ * Aggregated learning-progress data for the chart + stat strip.
+ */
+export interface ProgressData {
+  points: ProgressPoint[];
+  totalSentences: number;
+  addedToday: number;
+  /** Sentences due now or earlier (the "learn ASAP" backlog) */
+  overdueCount: number;
+  /** Sentences at the final review stage */
+  masteredCount: number;
+}
+
+/**
  * A complete sentence record stored in the database.
  */
 export interface SentenceRecord {

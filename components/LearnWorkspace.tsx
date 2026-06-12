@@ -301,6 +301,9 @@ export default function LearnWorkspace() {
             <Link href="/review" className="ui-button">
               Review
             </Link>
+            <Link href="/progress" className="ui-button">
+              Progress
+            </Link>
             <div className="page-header-divider" />
             <ThemeToggle />
           </nav>
