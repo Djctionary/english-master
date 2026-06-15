@@ -182,7 +182,17 @@ export interface ProgressRow {
 }
 
 /**
- * A single day on the progress chart's X axis.
+ * One logged day of the "sentences due" history.
+ */
+export interface DueSnapshot {
+  /** YYYY-MM-DD (UTC) */
+  day: string;
+  /** Sentences that were due for review on that day */
+  dueCount: number;
+}
+
+/**
+ * A single day on the progress chart's X axis (past + today only).
  */
 export interface ProgressPoint {
   /** YYYY-MM-DD (UTC) */
@@ -191,11 +201,13 @@ export interface ProgressPoint {
   added: number;
   /** Total sentences learned up to and including this day */
   cumulative: number;
-  /** Sentences due on this day. Overdue sentences collapse onto today. */
-  dueForecast: number;
-  /** True for days after today (forecast region) */
-  isFuture: boolean;
-  /** True for today */
+  /**
+   * Sentences due for review on this day. Sourced from the logged daily
+   * snapshot; days before logging began default to 0. Today reflects the live
+   * count.
+   */
+  due: number;
+  /** True for today (the last point in the series) */
   isToday: boolean;
 }
 
@@ -206,8 +218,8 @@ export interface ProgressData {
   points: ProgressPoint[];
   totalSentences: number;
   addedToday: number;
-  /** Sentences due now or earlier (the "learn ASAP" backlog) */
-  overdueCount: number;
+  /** Sentences due for review now (current backlog snapshot) */
+  dueCount: number;
   /** Sentences at the final review stage */
   masteredCount: number;
 }

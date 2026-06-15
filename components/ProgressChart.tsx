@@ -1,21 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProgressData, ProgressPoint } from "@/lib/types";
 
-const VIEW_W = 760;
-const VIEW_H = 340;
-const PAD_L = 44;
-const PAD_R = 44;
-const PAD_T = 24;
-const PAD_B = 48;
+// Two stacked panels share one time axis (past 30 days through today). Each is a
+// daily-count bar series with its OWN vertical scale, so the large "due" backlog
+// (~200) and the small "added per day" counts (~5–10) are both readable instead
+// of one crushing the other. SVGs render at the measured pixel width so text
+// stays crisp from phone to desktop.
 
-const PLOT_X0 = PAD_L;
-const PLOT_X1 = VIEW_W - PAD_R;
-const PLOT_Y0 = PAD_T;
-const PLOT_Y1 = VIEW_H - PAD_B;
-const PLOT_W = PLOT_X1 - PLOT_X0;
-const PLOT_H = PLOT_Y1 - PLOT_Y0;
+const PAD_L = 34;
+const PAD_R = 12;
+const DUE_H = 130; // "due each day" panel plot height
+const ADD_H = 96; // "added per day" panel plot height
+const TOP_PAD = 14; // headroom above each plot for the max gridline label
+const AXIS_H = 20; // x-axis label strip under the bottom panel
 
 function niceMax(value: number): number {
   if (value <= 5) return 5;
@@ -31,212 +30,95 @@ function formatDay(dateKey: string): string {
 }
 
 export default function ProgressChart({ data }: { data: ProgressData }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(720);
   const [hovered, setHovered] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      if (w > 0) setWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const { points } = data;
   const n = points.length;
 
-  const maxCumulative = useMemo(
-    () => niceMax(Math.max(1, ...points.map((p) => p.cumulative))),
+  const plotW = Math.max(1, width - PAD_L - PAD_R);
+  const slotW = plotW / Math.max(1, n);
+  const barW = Math.max(2, Math.min(20, slotW * 0.62));
+
+  const maxDue = useMemo(
+    () => niceMax(Math.max(1, ...points.map((p) => p.due))),
     [points]
   );
-  const maxDaily = useMemo(
-    () => niceMax(Math.max(1, ...points.map((p) => Math.max(p.added, p.dueForecast)))),
+  const maxAdded = useMemo(
+    () => niceMax(Math.max(1, ...points.map((p) => p.added))),
     [points]
   );
 
-  const slotW = PLOT_W / Math.max(1, n);
-  const barW = Math.max(2, Math.min(9, slotW * 0.3));
+  const cx = (i: number) => PAD_L + slotW * (i + 0.5);
 
-  const cx = (i: number) => PLOT_X0 + slotW * (i + 0.5);
-  const yCumulative = (v: number) => PLOT_Y1 - (v / maxCumulative) * PLOT_H;
-  const yDaily = (v: number) => PLOT_Y1 - (v / maxDaily) * PLOT_H;
+  // Roughly one x label per ~64px of width, plus always the last (today).
+  const xLabelStep = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(width / 64))));
 
-  const todayIndex = points.findIndex((p) => p.isToday);
-
-  const linePath = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i).toFixed(1)} ${yCumulative(p.cumulative).toFixed(1)}`)
-    .join(" ");
-
-  const areaPath =
-    `M ${cx(0).toFixed(1)} ${PLOT_Y1} ` +
-    points.map((p, i) => `L ${cx(i).toFixed(1)} ${yCumulative(p.cumulative).toFixed(1)}`).join(" ") +
-    ` L ${cx(n - 1).toFixed(1)} ${PLOT_Y1} Z`;
-
-  const gridLines = [0, 0.25, 0.5, 0.75, 1];
-
-  const xLabelStep = Math.max(1, Math.ceil(n / 8));
+  const lastIdx = n - 1;
 
   const hoveredPoint: ProgressPoint | null = hovered != null ? points[hovered] : null;
-  const tooltipLeftPct =
-    hovered != null ? ((cx(hovered) / VIEW_W) * 100).toFixed(2) : "0";
-  const tooltipFlip = hovered != null && cx(hovered) > VIEW_W * 0.6;
+  const tooltipLeftPct = hovered != null ? ((cx(hovered) / width) * 100).toFixed(2) : "0";
+  const tooltipFlip = hovered != null && cx(hovered) > width * 0.6;
 
   return (
-    <div style={{ position: "relative", width: "100%" }}>
-      <svg
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        width="100%"
-        role="img"
-        aria-label="Learning progress over time"
-        style={{ display: "block", overflow: "visible" }}
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {/* Horizontal grid + left (cumulative) axis labels */}
-        {gridLines.map((t) => {
-          const y = PLOT_Y1 - t * PLOT_H;
-          return (
-            <g key={t}>
-              <line
-                x1={PLOT_X0}
-                x2={PLOT_X1}
-                y1={y}
-                y2={y}
-                stroke="var(--color-border)"
-                strokeWidth={1}
-              />
-              <text
-                x={PLOT_X0 - 8}
-                y={y + 3}
-                textAnchor="end"
-                fontSize={10}
-                fill="var(--color-text-muted)"
-              >
-                {Math.round(maxCumulative * t)}
-              </text>
-              <text
-                x={PLOT_X1 + 8}
-                y={y + 3}
-                textAnchor="start"
-                fontSize={10}
-                fill="var(--color-text-muted)"
-              >
-                {Math.round(maxDaily * t)}
-              </text>
-            </g>
-          );
-        })}
+    <div ref={wrapRef} style={{ position: "relative", width: "100%" }}>
+      <BarPanel
+        title="Sentences due each day"
+        points={points}
+        getValue={(p) => p.due}
+        max={maxDue}
+        plotH={DUE_H}
+        color="var(--color-primary)"
+        todayColor="var(--color-error)"
+        width={width}
+        slotW={slotW}
+        barW={barW}
+        cx={cx}
+        hovered={hovered}
+        setHovered={setHovered}
+        showXLabels={false}
+        xLabelStep={xLabelStep}
+        lastIdx={lastIdx}
+      />
 
-        {/* Today divider */}
-        {todayIndex >= 0 && (
-          <g>
-            <line
-              x1={cx(todayIndex)}
-              x2={cx(todayIndex)}
-              y1={PLOT_Y0 - 6}
-              y2={PLOT_Y1}
-              stroke="var(--color-border-strong)"
-              strokeWidth={1}
-              strokeDasharray="4 4"
-            />
-            <text
-              x={cx(todayIndex)}
-              y={PLOT_Y0 - 10}
-              textAnchor="middle"
-              fontSize={10}
-              fontWeight={600}
-              fill="var(--color-text-secondary)"
-            >
-              Today
-            </text>
-          </g>
-        )}
-
-        {/* Cumulative area + line (left scale) */}
-        <path d={areaPath} fill="var(--color-primary)" opacity={0.1} />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="var(--color-primary)"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-
-        {/* Daily bars (right scale) */}
-        {points.map((p, i) => {
-          const center = cx(i);
-          const addedH = p.added > 0 ? PLOT_Y1 - yDaily(p.added) : 0;
-          const dueH = p.dueForecast > 0 ? PLOT_Y1 - yDaily(p.dueForecast) : 0;
-          const dueColor = p.isToday
-            ? "var(--color-error)"
-            : "var(--color-warning)";
-          return (
-            <g key={p.date}>
-              {addedH > 0 && (
-                <rect
-                  x={center - barW - 1}
-                  y={yDaily(p.added)}
-                  width={barW}
-                  height={addedH}
-                  rx={1.5}
-                  fill="var(--color-success)"
-                />
-              )}
-              {dueH > 0 && (
-                <rect
-                  x={center + 1}
-                  y={yDaily(p.dueForecast)}
-                  width={barW}
-                  height={dueH}
-                  rx={1.5}
-                  fill={dueColor}
-                />
-              )}
-            </g>
-          );
-        })}
-
-        {/* Cumulative dot on hover */}
-        {hoveredPoint && hovered != null && (
-          <circle
-            cx={cx(hovered)}
-            cy={yCumulative(hoveredPoint.cumulative)}
-            r={3.5}
-            fill="var(--color-primary)"
-            stroke="var(--color-surface)"
-            strokeWidth={1.5}
-          />
-        )}
-
-        {/* X axis labels */}
-        {points.map((p, i) =>
-          i % xLabelStep === 0 || p.isToday ? (
-            <text
-              key={`x-${p.date}`}
-              x={cx(i)}
-              y={PLOT_Y1 + 16}
-              textAnchor="middle"
-              fontSize={9}
-              fill="var(--color-text-muted)"
-            >
-              {formatDay(p.date)}
-            </text>
-          ) : null
-        )}
-
-        {/* Hover capture columns */}
-        {points.map((p, i) => (
-          <rect
-            key={`hit-${p.date}`}
-            x={PLOT_X0 + slotW * i}
-            y={PLOT_Y0}
-            width={slotW}
-            height={PLOT_H}
-            fill="transparent"
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
-            style={{ cursor: "pointer" }}
-          />
-        ))}
-      </svg>
+      <BarPanel
+        title="Sentences added each day"
+        style={{ marginTop: "var(--space-md)" }}
+        points={points}
+        getValue={(p) => p.added}
+        max={maxAdded}
+        plotH={ADD_H}
+        color="var(--color-success)"
+        todayColor="var(--color-success)"
+        width={width}
+        slotW={slotW}
+        barW={barW}
+        cx={cx}
+        hovered={hovered}
+        setHovered={setHovered}
+        showXLabels
+        xLabelStep={xLabelStep}
+        lastIdx={lastIdx}
+      />
 
       {/* Tooltip */}
       {hoveredPoint && (
         <div
           style={{
             position: "absolute",
-            top: 8,
+            top: 0,
             left: `${tooltipLeftPct}%`,
             transform: `translateX(${tooltipFlip ? "-100%" : "0"}) translateX(${tooltipFlip ? "-8px" : "8px"})`,
             pointerEvents: "none",
@@ -251,23 +133,11 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
             zIndex: 2,
           }}
         >
-          <div
-            style={{
-              fontWeight: 600,
-              marginBottom: 4,
-              color: "var(--color-text-secondary)",
-            }}
-          >
-            {formatDay(hoveredPoint.date)}
-            {hoveredPoint.isToday ? " · Today" : hoveredPoint.isFuture ? " · Upcoming" : ""}
+          <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--color-text-secondary)" }}>
+            {hoveredPoint.isToday ? "Today" : formatDay(hoveredPoint.date)}
           </div>
-          <TooltipRow color="var(--color-primary)" label="Cumulative learned" value={hoveredPoint.cumulative} />
-          <TooltipRow color="var(--color-success)" label="Learned that day" value={hoveredPoint.added} />
-          <TooltipRow
-            color={hoveredPoint.isToday ? "var(--color-error)" : "var(--color-warning)"}
-            label={hoveredPoint.isToday ? "Due now" : "Due to review"}
-            value={hoveredPoint.dueForecast}
-          />
+          <TooltipRow color="var(--color-primary)" label="Due for review" value={hoveredPoint.due} />
+          <TooltipRow color="var(--color-success)" label="Added that day" value={hoveredPoint.added} />
         </div>
       )}
 
@@ -278,14 +148,155 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
           flexWrap: "wrap",
           gap: "var(--space-lg)",
           justifyContent: "center",
-          marginTop: "var(--space-md)",
+          marginTop: "var(--space-lg)",
         }}
       >
-        <LegendItem color="var(--color-primary)" label="Cumulative learned" shape="line" />
-        <LegendItem color="var(--color-success)" label="Learned that day" shape="bar" />
-        <LegendItem color="var(--color-warning)" label="Due to review" shape="bar" />
-        <LegendItem color="var(--color-error)" label="Due now (overdue)" shape="bar" />
+        <LegendItem color="var(--color-primary)" label="Due each day" />
+        <LegendItem color="var(--color-success)" label="Added each day" />
       </div>
+    </div>
+  );
+}
+
+function BarPanel({
+  title,
+  style,
+  points,
+  getValue,
+  max,
+  plotH,
+  color,
+  todayColor,
+  width,
+  slotW,
+  barW,
+  cx,
+  hovered,
+  setHovered,
+  showXLabels,
+  xLabelStep,
+  lastIdx,
+}: {
+  title: string;
+  style?: React.CSSProperties;
+  points: ProgressPoint[];
+  getValue: (p: ProgressPoint) => number;
+  max: number;
+  plotH: number;
+  color: string;
+  todayColor: string;
+  width: number;
+  slotW: number;
+  barW: number;
+  cx: (i: number) => number;
+  hovered: number | null;
+  setHovered: (updater: number | null | ((cur: number | null) => number | null)) => void;
+  showXLabels: boolean;
+  xLabelStep: number;
+  lastIdx: number;
+}) {
+  const svgH = TOP_PAD + plotH + (showXLabels ? AXIS_H : 6);
+  const y = (v: number) => TOP_PAD + plotH - (v / max) * plotH;
+  const gridT = [0, 0.5, 1];
+
+  return (
+    <div style={style}>
+      <PanelLabel>{title}</PanelLabel>
+      <svg
+        viewBox={`0 0 ${width} ${svgH}`}
+        width="100%"
+        height={svgH}
+        role="img"
+        aria-label={title}
+        style={{ display: "block", overflow: "visible" }}
+      >
+        {gridT.map((t) => {
+          const gy = TOP_PAD + plotH - t * plotH;
+          return (
+            <g key={t}>
+              <line
+                x1={PAD_L}
+                x2={width - PAD_R}
+                y1={gy}
+                y2={gy}
+                stroke="var(--color-border)"
+                strokeWidth={1}
+              />
+              <text x={PAD_L - 8} y={gy + 3} textAnchor="end" fontSize={11} fill="var(--color-text-muted)">
+                {Math.round(max * t)}
+              </text>
+            </g>
+          );
+        })}
+
+        {points.map((p, i) => {
+          const v = getValue(p);
+          if (v <= 0) return null;
+          const h = TOP_PAD + plotH - y(v);
+          const active = hovered === i;
+          return (
+            <rect
+              key={p.date}
+              x={cx(i) - barW / 2}
+              y={y(v)}
+              width={barW}
+              height={h}
+              rx={Math.min(2, barW / 3)}
+              fill={p.isToday ? todayColor : color}
+              opacity={hovered == null || active ? 1 : 0.45}
+            />
+          );
+        })}
+
+        {showXLabels &&
+          points.map((p, i) =>
+            i % xLabelStep === 0 || i === lastIdx ? (
+              <text
+                key={`x-${p.date}`}
+                x={cx(i)}
+                y={TOP_PAD + plotH + 14}
+                textAnchor="middle"
+                fontSize={10}
+                fontWeight={p.isToday ? 600 : 400}
+                fill={p.isToday ? "var(--color-text-secondary)" : "var(--color-text-muted)"}
+              >
+                {p.isToday ? "Today" : formatDay(p.date)}
+              </text>
+            ) : null
+          )}
+
+        {/* Hover capture columns */}
+        {points.map((p, i) => (
+          <rect
+            key={`hit-${p.date}`}
+            x={PAD_L + slotW * i}
+            y={0}
+            width={slotW}
+            height={TOP_PAD + plotH}
+            fill="transparent"
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
+            style={{ cursor: "pointer" }}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function PanelLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: "var(--text-caption)",
+        fontWeight: 600,
+        color: "var(--color-text-secondary)",
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+        marginBottom: "var(--space-2xs, 4px)",
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -293,36 +304,18 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
 function TooltipRow({ color, label, value }: { color: string; label: string; value: number }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, lineHeight: 1.6 }}>
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 2,
-          backgroundColor: color,
-          flexShrink: 0,
-        }}
-      />
+      <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: color, flexShrink: 0 }} />
       <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
       <span style={{ marginLeft: "auto", fontWeight: 600 }}>{value}</span>
     </div>
   );
 }
 
-function LegendItem({ color, label, shape }: { color: string; label: string; shape: "line" | "bar" }) {
+function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span
-        style={{
-          width: shape === "line" ? 16 : 10,
-          height: shape === "line" ? 3 : 10,
-          borderRadius: shape === "line" ? 2 : 2,
-          backgroundColor: color,
-          flexShrink: 0,
-        }}
-      />
-      <span style={{ fontSize: "var(--text-caption)", color: "var(--color-text-secondary)" }}>
-        {label}
-      </span>
+      <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: color, flexShrink: 0 }} />
+      <span style={{ fontSize: "var(--text-caption)", color: "var(--color-text-secondary)" }}>{label}</span>
     </div>
   );
 }

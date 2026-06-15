@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.1-alpha — Progress Chart Redesign (15/06/2026)
+
+Rebuilt the Progress chart from first principles after the combined dual-axis
+plot proved hard to read — particularly on mobile and when daily counts (~5–10)
+are dwarfed by the cumulative total (~200).
+
+- **Two stacked panels, one shared time axis** (small multiples, replacing the dual-axis combo). Past 30 days through today — no forecast, which also eliminates the old today/tomorrow bar overlap:
+  - **Sentences due each day** — daily bars, its own vertical scale
+  - **Sentences added each day** — daily bars, its own vertical scale, so the small daily counts (~5–10) are never crushed by the large due backlog (~200)
+- **Due history is logged, not forecast:** SM-2 only stores each sentence's *current* due date, so past due counts can't be reconstructed. Instead, every visit to `/progress` records today's due count to a new `due_snapshots` table; the chart reads that log. Days before logging began show 0 and the history fills in over time. Today's bar always reflects the live count.
+- **"Due to review" retired as a chart series:** the live backlog is surfaced as a **"Due for review"** stat instead
+- **Mobile-responsive:** SVGs render at the measured container width via `ResizeObserver`, so text stays crisp and bar width / x-label density adapt instead of being scaled down from a fixed viewBox. The stat strip is 4-up on wide screens and collapses to a 2×2 grid when narrow
+- **Data layer:** new `DueSnapshot` type + `due_snapshots` table (SQLite & Postgres) with `recordDueSnapshot`/`getDueSnapshots`; `ProgressPoint` is now `{ date, added, cumulative, due, isToday }`; `ProgressData.overdueCount` → `dueCount`; `buildProgressData` takes the due log and drops the forecast
+
+---
+
 ## v1.4.0-alpha — Learning Progress Visualization (12/06/2026)
 
 A new **Progress** page that visualizes your recent learning activity in a single

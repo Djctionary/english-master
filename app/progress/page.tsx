@@ -67,21 +67,12 @@ export default function ProgressPage() {
           </nav>
         </header>
 
-        {/* Stat strip */}
+        {/* Stat strip — 4-up on wide screens, 2×2 when narrow */}
         {data && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-              gap: "1px",
-              backgroundColor: "var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              overflow: "hidden",
-            }}
-          >
+          <div className="stat-strip">
             <StatCell label="Total learned" value={data.totalSentences} />
             <StatCell label="Today" value={data.addedToday} />
-            <StatCell label="Due now" value={data.overdueCount} highlight />
+            <StatCell label="Due for review" value={data.dueCount} highlight={data.dueCount > 0} />
             <StatCell label="Mastered" value={data.masteredCount} />
           </div>
         )}
@@ -106,16 +97,6 @@ export default function ProgressPage() {
             >
               Recent learning activity
             </h2>
-            <p
-              style={{
-                fontSize: "var(--text-small)",
-                color: "var(--color-text-muted)",
-                margin: 0,
-              }}
-            >
-              Last 30 days of study plus a 14-day review forecast. Overdue
-              sentences are grouped under today.
-            </p>
           </div>
 
           {loading && <CenteredNote>Loading your progress…</CenteredNote>}

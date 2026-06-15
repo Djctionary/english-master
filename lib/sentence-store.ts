@@ -5,6 +5,7 @@ import {
 } from "@/lib/review";
 import type {
   AnalysisResult,
+  DueSnapshot,
   ProgressRow,
   ReviewQueueItem,
   ReviewQueueResult,
@@ -313,6 +314,16 @@ async function initPostgresSchema(): Promise<void> {
       `,
       [DEFAULT_LEARNER_ID, now]
     );
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS due_snapshots (
+        learner_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        due_count INTEGER NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (learner_id, day)
+      );
+    `);
   })();
 
   try {
@@ -696,6 +707,56 @@ export async function getProgressRows(userId?: number): Promise<ProgressRow[]> {
   }
 
   return sqliteDb.getProgressRows(userId);
+}
+
+export async function getDueSnapshots(
+  sinceDay: string,
+  userId?: number
+): Promise<DueSnapshot[]> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
+
+    const result = await pool.query<{ day: string; due_count: number }>(
+      `
+        SELECT day, due_count
+        FROM due_snapshots
+        WHERE learner_id = $1 AND day >= $2
+        ORDER BY day ASC
+      `,
+      [learnerId, sinceDay]
+    );
+
+    return result.rows.map((row) => ({ day: row.day, dueCount: row.due_count }));
+  }
+
+  return sqliteDb.getDueSnapshots(sinceDay, userId);
+}
+
+export async function recordDueSnapshot(
+  day: string,
+  dueCount: number,
+  userId?: number
+): Promise<void> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
+
+    await pool.query(
+      `
+        INSERT INTO due_snapshots (learner_id, day, due_count, updated_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (learner_id, day)
+        DO UPDATE SET due_count = EXCLUDED.due_count, updated_at = EXCLUDED.updated_at
+      `,
+      [learnerId, day, dueCount]
+    );
+    return;
+  }
+
+  sqliteDb.recordDueSnapshot(day, dueCount, userId);
 }
 
 export async function submitSentenceReview(
