@@ -61,17 +61,15 @@ export default function LearnWorkspace() {
   const [tagFilter, setTagFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalSentences, setTotalSentences] = useState(0);
+  const [allTags, setAllTags] = useState<SentenceTag[]>([]);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(totalSentences / PAGE_SIZE));
 
-  const tagTypes = Array.from(
-    new Set(
-      sentences
-        .map((r) => r.tag?.type)
-        .filter((t): t is string => Boolean(t))
-    )
-  );
+  // Tag pickers are sourced from the whole library (via /api/tags), not the
+  // current page of `sentences` — otherwise the available tags would change
+  // with pagination/search and the filter & editor lists would fall out of sync.
+  const tagTypes = Array.from(new Set(allTags.map((t) => t.type)));
 
   const fetchLibrary = useCallback(async (query = "", tagType = "", page = 1) => {
     setIsLibraryLoading(true);
@@ -101,9 +99,24 @@ export default function LearnWorkspace() {
     }
   }, []);
 
+  const fetchTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const tags = (await res.json()) as SentenceTag[];
+      if (Array.isArray(tags)) setAllTags(tags);
+    } catch {
+      // Non-critical; tag pickers just stay as-is.
+    }
+  }, []);
+
   useEffect(() => {
     fetchLibrary(searchQuery, tagFilter, currentPage);
   }, [fetchLibrary, currentPage, tagFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    void fetchTags();
+  }, [fetchTags]);
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -190,17 +203,7 @@ export default function LearnWorkspace() {
     setTagError(null);
   };
 
-  const existingTags: SentenceTag[] = Array.from(
-    new Map(
-      sentences
-        .map((record) => record.tag)
-        .filter((tag): tag is SentenceTag => Boolean(tag))
-        .map((tag) => [
-          `${tag.type.toLowerCase()}|||${tag.name.toLowerCase()}`,
-          tag,
-        ])
-    ).values()
-  );
+  const existingTags: SentenceTag[] = allTags;
 
   const handleSaveTag = async (tag: SentenceTag | null) => {
     if (!currentAnalysis) return;
@@ -222,6 +225,7 @@ export default function LearnWorkspace() {
       const updatedRecord: SentenceRecord = await res.json();
       setCurrentAnalysis(updatedRecord);
       upsertRecord(updatedRecord);
+      void fetchTags();
     } catch (err) {
       setTagError(
         err instanceof Error ? err.message : "An unexpected error occurred."
@@ -257,6 +261,7 @@ export default function LearnWorkspace() {
       if (currentAnalysis?.id === record.id) {
         setCurrentAnalysis(null);
       }
+      void fetchTags();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete sentence.");
     } finally {

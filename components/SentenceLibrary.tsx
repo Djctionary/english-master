@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SentenceRecord } from "@/lib/types";
 
 export interface SentenceLibraryProps {
@@ -264,12 +265,34 @@ function TagFilterDropdown({
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Anchor the portalled menu to the button. Recomputed on open and whenever
+  // the page scrolls/resizes so it tracks the trigger.
+  useEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (rect) setCoords({ top: rect.bottom + 4, left: rect.right, width: rect.width });
+    };
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -288,6 +311,7 @@ function TagFilterDropdown({
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((p) => !p)}
         aria-label="Filter by tag type"
@@ -335,21 +359,25 @@ function TagFilterDropdown({
         </svg>
       </button>
 
-      {open && (
+      {open && coords && typeof document !== "undefined" &&
+        createPortal(
         <div
+          ref={menuRef}
           role="listbox"
           aria-label="Tag filter options"
           style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            right: 0,
-            minWidth: "100%",
+            position: "fixed",
+            top: coords.top,
+            left: coords.left,
+            transform: "translateX(-100%)",
+            minWidth: coords.width,
+            maxHeight: "280px",
+            overflowY: "auto",
             backgroundColor: "var(--color-surface)",
             border: "1px solid var(--color-border)",
             borderRadius: "var(--radius-sm)",
             boxShadow: "var(--shadow-md)",
-            zIndex: 100,
-            overflow: "hidden",
+            zIndex: 1000,
           }}
         >
           {allItems.map((item) => {
@@ -389,7 +417,8 @@ function TagFilterDropdown({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

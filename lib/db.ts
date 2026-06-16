@@ -625,6 +625,25 @@ export function searchSentences(options: SearchOptions & { userId?: number } = {
   };
 }
 
+export function getDistinctTags(userId?: number): SentenceTag[] {
+  const database = getDb();
+  const where = userId ? "WHERE user_id = ? AND" : "WHERE";
+  const params = userId ? [userId] : [];
+
+  const rows = database
+    .prepare(
+      `
+        SELECT DISTINCT tag_type, tag_name
+        FROM sentences
+        ${where} tag_type IS NOT NULL AND tag_name IS NOT NULL
+        ORDER BY tag_type COLLATE NOCASE, tag_name COLLATE NOCASE
+      `
+    )
+    .all(...params) as { tag_type: string; tag_name: string }[];
+
+  return rows.map((row) => ({ type: row.tag_type, name: row.tag_name }));
+}
+
 export function getReviewQueue(options?: {
   learnerId?: string;
   userId?: number;

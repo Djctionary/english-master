@@ -2,7 +2,7 @@
 
 English learning app: GPT-4o sentence analysis + TTS audio + SM-2 spaced repetition review.
 
-**Current version: v1.4.2-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
+**Current version: v1.4.3-alpha** | [Changelog](docs/specs/CHANGELOG.md) | [Backlog](docs/specs/BACKLOG.md)
 
 ## Tech Stack
 
@@ -11,7 +11,7 @@ Next.js 15 (App Router) · React 19 · TypeScript 5 (strict) · SQLite / Postgre
 ## Structure
 
 ```
-app/api/         — analyze, sentences, review, audio, auth, progress endpoints
+app/api/         — analyze, sentences, review, audio, auth, progress, tags endpoints
 app/learn/       — learning page
 app/review/      — review page
 app/progress/    — learning-progress chart page

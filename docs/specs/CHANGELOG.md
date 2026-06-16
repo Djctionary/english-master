@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.4.3-alpha — Tag List Sync + Dropdown Fix (16/06/2026)
+
+Fixed two tag-related issues in the Learn workspace.
+
+- **Tag pickers now reflect the whole library:** both the tag filter and the tag editor's "Choose from existing tags" were built from the *currently loaded page* of sentences (paginated + filtered), so the available tags changed depending on what was on screen — e.g. filtering to `Paper:*` hid `Game:Endfield`. They now source from a new **`GET /api/tags`** endpoint returning the user's distinct tags across the entire library.
+  - New `getDistinctTags(userId)` in both backends (SQLite & Postgres) + `/api/tags` route
+  - `LearnWorkspace` holds an `allTags` state (fetched on mount, refetched after a tag save or sentence delete); both the filter options and the editor list derive from it, so they stay in sync
+- **Tag filter dropdown no longer clipped:** the "All tags" menu was `position: absolute` inside the library card, which uses `overflow: hidden`, so it got cut off / overlapped the sentence rows when the list was short. It now renders through a **React portal** to `document.body` (`position: fixed`, anchored to the button via `getBoundingClientRect`, repositioned on scroll/resize), with `max-height` + scroll for long tag lists
+
+---
+
 ## v1.4.2-alpha — Merge Progress into Review (16/06/2026)
 
 Folded the learning-activity chart into the Review page and removed the

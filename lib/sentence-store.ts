@@ -592,6 +592,27 @@ export async function searchSentences(
   return sqliteDb.searchSentences(options);
 }
 
+export async function getDistinctTags(userId?: number): Promise<SentenceTag[]> {
+  if (resolveProvider() === "postgres") {
+    await initPostgresSchema();
+    const pool = getPostgresPool();
+    const where = userId ? `WHERE user_id = ${userId} AND` : "WHERE";
+
+    const result = await pool.query<{ tag_type: string; tag_name: string }>(
+      `
+        SELECT DISTINCT tag_type, tag_name
+        FROM sentences
+        ${where} tag_type IS NOT NULL AND tag_name IS NOT NULL
+        ORDER BY tag_type, tag_name
+      `
+    );
+
+    return result.rows.map((row) => ({ type: row.tag_type, name: row.tag_name }));
+  }
+
+  return sqliteDb.getDistinctTags(userId);
+}
+
 export async function getReviewQueue(options?: {
   learnerId?: string;
   userId?: number;
