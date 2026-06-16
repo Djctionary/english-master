@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 const JWT_SECRET = process.env.JWT_SECRET ?? "english-master-dev-secret-change-in-prod";
 const COOKIE_NAME = "em_token";
 
-const PROTECTED_PAGES = ["/learn", "/review", "/progress"];
+const PROTECTED_PAGES = ["/learn", "/review"];
 const PROTECTED_API_PREFIX = "/api/";
 const PUBLIC_API_ROUTES = ["/api/auth"];
 
@@ -68,5 +68,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/learn/:path*", "/review/:path*", "/progress/:path*", "/api/:path*"],
+  matcher: ["/learn/:path*", "/review/:path*", "/api/:path*"],
 };

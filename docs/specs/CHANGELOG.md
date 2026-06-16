@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.4.2-alpha — Merge Progress into Review (16/06/2026)
+
+Folded the learning-activity chart into the Review page and removed the
+standalone Progress page, so reviewing and tracking now live together.
+
+- **Chart moved into Review:** the two-panel learning-activity chart now renders as a "Recent learning activity" card below the review card on `/review`, fed by `GET /api/progress` (which still logs today's due count on each visit)
+- **`/progress` page deleted:** route removed, dropped from `middleware.ts` protected pages/matcher (the `/api/progress` endpoint stays), and the **Progress** nav link removed from the Learn and Review headers
+- **Review stat bar unchanged:** Total · Due · Reviewed · Mastered stays exactly as-is
+- **Cleanup:** removed the now-unused `.stat-strip` CSS (the deleted page's only consumer)
+
+---
+
 ## v1.4.1-alpha — Progress Chart Redesign (15/06/2026)
 
 Rebuilt the Progress chart from first principles after the combined dual-axis

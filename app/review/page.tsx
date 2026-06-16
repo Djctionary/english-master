@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserNav from "@/components/UserNav";
+import ProgressChart from "@/components/ProgressChart";
 import type {
   AnalysisResult,
+  ProgressData,
   ReviewQueueItem,
   ReviewQueueResult,
   ReviewResult,
@@ -55,6 +57,7 @@ export default function ReviewPage() {
   const [reviewedCount, setReviewedCount] = useState(0);
   const [username, setUsername] = useState<string | null>(null);
   const [encouragement, setEncouragement] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressData | null>(null);
 
   const currentItem: ReviewQueueItem | null = queue?.items[currentIndex] ?? null;
   const sessionComplete = queue !== null && !loading && !error && !currentItem;
@@ -91,6 +94,10 @@ export default function ReviewPage() {
     fetch("/api/auth").then((r) => r.json()).then((d) => {
       if (d.user) setUsername(d.user.username);
     }).catch(() => {});
+    fetch("/api/progress")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: ProgressData | null) => setProgress(d))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -223,9 +230,6 @@ export default function ReviewPage() {
             </Link>
             <Link href="/review" className="ui-button is-active">
               Review
-            </Link>
-            <Link href="/progress" className="ui-button">
-              Progress
             </Link>
             <div className="page-header-divider" />
             <ThemeToggle />
@@ -754,6 +758,30 @@ export default function ReviewPage() {
             </>
           )}
         </section>
+
+        {/* Learning activity chart */}
+        {progress && progress.totalSentences > 0 && (
+          <section
+            className="card"
+            style={{
+              padding: "var(--space-xl)",
+              display: "grid",
+              gap: "var(--space-md)",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "var(--text-heading)",
+                fontWeight: "var(--weight-semibold)",
+                color: "var(--color-text)",
+                margin: 0,
+              }}
+            >
+              Recent learning activity
+            </h2>
+            <ProgressChart data={progress} />
+          </section>
+        )}
       </div>
     </main>
   );

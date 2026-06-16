@@ -303,22 +303,6 @@ select {
   box-shadow: var(--shadow-md);
 }
 
-/* ── Progress stat strip: 4-up on wide screens, 2×2 when narrow ── */
-.stat-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background-color: var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-@media (max-width: 560px) {
-  .stat-strip {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 /* ── Section label (uppercase) ── */
 .section-label {
   font-size: var(--text-tiny);
@@ -497,25 +481,6 @@ select {
   height: 24px;
   background-color: var(--color-border);
   flex-shrink: 0;
-}
-
-/* ══════════════════════════════════════════════════════════
-   Progress — Stat Strip
-   ══════════════════════════════════════════════════════════ */
-
-.stat-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background-color: var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-@media (max-width: 560px) {
-  .stat-strip {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 /* ══════════════════════════════════════════════════════════
