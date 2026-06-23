@@ -1,4 +1,4 @@
-import type { DueSnapshot, ProgressData, ProgressPoint, ProgressRow } from "@/lib/types";
+import type { ProgressData, ProgressPoint, ProgressRow, ReviewCount } from "@/lib/types";
 
 const MASTERED_STAGE = 8;
 
@@ -26,16 +26,16 @@ export function windowStartKey(now: Date, pastDays = PROGRESS_PAST_DAYS): string
  * The series is past-only (last `pastDays` days through today). Per-day "added"
  * and the running cumulative total are reconstructed from createdAt.
  *
- * The per-day "due" series can't be reconstructed from sentence rows (SM-2 only
- * stores each sentence's *current* due date), so it's read from `dueLog` — a
- * persisted daily snapshot that accumulates over time. Days before logging
- * began default to 0; today is overwritten with the live count computed here.
+ * The per-day "reviewed" series counts review events, which aren't derivable
+ * from sentence rows (SM-2 only stores each sentence's *latest* review), so
+ * it's read from `reviewLog` — a per-day tally recorded as reviews happen. Days
+ * before logging began (or with no reviews) default to 0.
  */
 export function buildProgressData(
   rows: ProgressRow[],
   now: Date = new Date(),
   pastDays = PROGRESS_PAST_DAYS,
-  dueLog: DueSnapshot[] = []
+  reviewLog: ReviewCount[] = []
 ): ProgressData {
   const todayKey = dayKey(now);
   const nowMs = now.getTime();
@@ -49,14 +49,14 @@ export function buildProgressData(
   }
 
   const addedByDay = new Map<string, number>();
-  const dueByDay = new Map<string, number>();
+  const reviewedByDay = new Map<string, number>();
   for (const key of dates) {
     addedByDay.set(key, 0);
-    dueByDay.set(key, 0);
+    reviewedByDay.set(key, 0);
   }
-  for (const snap of dueLog) {
-    if (dueByDay.has(snap.day)) {
-      dueByDay.set(snap.day, snap.dueCount);
+  for (const entry of reviewLog) {
+    if (reviewedByDay.has(entry.day)) {
+      reviewedByDay.set(entry.day, entry.count);
     }
   }
 
@@ -88,9 +88,6 @@ export function buildProgressData(
     }
   }
 
-  // Today's live due count overrides any stale snapshot for today.
-  dueByDay.set(todayKey, dueCount);
-
   let running = baselineCumulative;
   const points: ProgressPoint[] = dates.map((date) => {
     const added = addedByDay.get(date) ?? 0;
@@ -99,7 +96,7 @@ export function buildProgressData(
       date,
       added,
       cumulative: running,
-      due: dueByDay.get(date) ?? 0,
+      reviewed: reviewedByDay.get(date) ?? 0,
       isToday: date === todayKey,
     };
   });

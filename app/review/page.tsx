@@ -249,8 +249,8 @@ export default function ReviewPage() {
             }}
           >
             <StatCell label="Total" value={queue.totalSentences} />
-            <StatCell label="Due" value={queue.dueCount} highlight />
-            <StatCell label="Reviewed" value={reviewedCount} />
+            <StatCell label="Due Today" value={queue.dueCount} highlight />
+            <StatCell label="Reviewed Today" value={reviewedCount} />
             <StatCell label="Mastered" value={queue.masteredCount} />
           </div>
         )}

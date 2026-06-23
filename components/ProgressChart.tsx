@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProgressData, ProgressPoint } from "@/lib/types";
 
 // Two stacked panels share one time axis (past 30 days through today). Each is a
-// daily-count bar series with its OWN vertical scale, so the large "due" backlog
-// (~200) and the small "added per day" counts (~5–10) are both readable instead
-// of one crushing the other. SVGs render at the measured pixel width so text
-// stays crisp from phone to desktop.
+// daily-count bar series with its OWN vertical scale, so the "reviewed per day"
+// and "added per day" counts are both readable instead of one crushing the
+// other. SVGs render at the measured pixel width so text stays crisp from phone
+// to desktop.
 
 const PAD_L = 34;
 const PAD_R = 12;
-const DUE_H = 130; // "due each day" panel plot height
+const REVIEWED_H = 130; // "reviewed each day" panel plot height
 const ADD_H = 96; // "added per day" panel plot height
 const TOP_PAD = 14; // headroom above each plot for the max gridline label
 const AXIS_H = 20; // x-axis label strip under the bottom panel
@@ -52,8 +52,8 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
   const slotW = plotW / Math.max(1, n);
   const barW = Math.max(2, Math.min(20, slotW * 0.62));
 
-  const maxDue = useMemo(
-    () => niceMax(Math.max(1, ...points.map((p) => p.due))),
+  const maxReviewed = useMemo(
+    () => niceMax(Math.max(1, ...points.map((p) => p.reviewed))),
     [points]
   );
   const maxAdded = useMemo(
@@ -75,11 +75,11 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
   return (
     <div ref={wrapRef} style={{ position: "relative", width: "100%" }}>
       <BarPanel
-        title="Sentences due each day"
+        title="Sentences reviewed each day"
         points={points}
-        getValue={(p) => p.due}
-        max={maxDue}
-        plotH={DUE_H}
+        getValue={(p) => p.reviewed}
+        max={maxReviewed}
+        plotH={REVIEWED_H}
         color="var(--color-primary)"
         todayColor="var(--color-error)"
         width={width}
@@ -136,7 +136,7 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
           <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--color-text-secondary)" }}>
             {hoveredPoint.isToday ? "Today" : formatDay(hoveredPoint.date)}
           </div>
-          <TooltipRow color="var(--color-primary)" label="Due for review" value={hoveredPoint.due} />
+          <TooltipRow color="var(--color-primary)" label="Reviewed that day" value={hoveredPoint.reviewed} />
           <TooltipRow color="var(--color-success)" label="Added that day" value={hoveredPoint.added} />
         </div>
       )}
@@ -151,7 +151,7 @@ export default function ProgressChart({ data }: { data: ProgressData }) {
           marginTop: "var(--space-lg)",
         }}
       >
-        <LegendItem color="var(--color-primary)" label="Due each day" />
+        <LegendItem color="var(--color-primary)" label="Reviewed each day" />
         <LegendItem color="var(--color-success)" label="Added each day" />
       </div>
     </div>

@@ -182,13 +182,13 @@ export interface ProgressRow {
 }
 
 /**
- * One logged day of the "sentences due" history.
+ * One logged day of the "sentences reviewed" history.
  */
-export interface DueSnapshot {
+export interface ReviewCount {
   /** YYYY-MM-DD (UTC) */
   day: string;
-  /** Sentences that were due for review on that day */
-  dueCount: number;
+  /** Number of reviews submitted on that day */
+  count: number;
 }
 
 /**
@@ -202,11 +202,10 @@ export interface ProgressPoint {
   /** Total sentences learned up to and including this day */
   cumulative: number;
   /**
-   * Sentences due for review on this day. Sourced from the logged daily
-   * snapshot; days before logging began default to 0. Today reflects the live
-   * count.
+   * Number of reviews submitted on this day. Sourced from the per-review log;
+   * days before logging began (or with no reviews) default to 0.
    */
-  due: number;
+  reviewed: number;
   /** True for today (the last point in the series) */
   isToday: boolean;
 }

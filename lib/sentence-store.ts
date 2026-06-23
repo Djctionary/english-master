@@ -5,8 +5,8 @@ import {
 } from "@/lib/review";
 import type {
   AnalysisResult,
-  DueSnapshot,
   ProgressRow,
+  ReviewCount,
   ReviewQueueItem,
   ReviewQueueResult,
   ReviewResult,
@@ -316,10 +316,10 @@ async function initPostgresSchema(): Promise<void> {
     );
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS due_snapshots (
+      CREATE TABLE IF NOT EXISTS review_counts (
         learner_id TEXT NOT NULL,
         day TEXT NOT NULL,
-        due_count INTEGER NOT NULL,
+        count INTEGER NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         PRIMARY KEY (learner_id, day)
       );
@@ -730,54 +730,45 @@ export async function getProgressRows(userId?: number): Promise<ProgressRow[]> {
   return sqliteDb.getProgressRows(userId);
 }
 
-export async function getDueSnapshots(
+export async function getReviewCounts(
   sinceDay: string,
   userId?: number
-): Promise<DueSnapshot[]> {
+): Promise<ReviewCount[]> {
   if (resolveProvider() === "postgres") {
     await initPostgresSchema();
     const pool = getPostgresPool();
     const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
 
-    const result = await pool.query<{ day: string; due_count: number }>(
+    const result = await pool.query<{ day: string; count: number }>(
       `
-        SELECT day, due_count
-        FROM due_snapshots
+        SELECT day, count
+        FROM review_counts
         WHERE learner_id = $1 AND day >= $2
         ORDER BY day ASC
       `,
       [learnerId, sinceDay]
     );
 
-    return result.rows.map((row) => ({ day: row.day, dueCount: row.due_count }));
+    return result.rows.map((row) => ({ day: row.day, count: Number(row.count) }));
   }
 
-  return sqliteDb.getDueSnapshots(sinceDay, userId);
+  return sqliteDb.getReviewCounts(sinceDay, userId);
 }
 
-export async function recordDueSnapshot(
+async function incrementPostgresReviewCount(
+  pool: PgPool,
   day: string,
-  dueCount: number,
-  userId?: number
+  learnerId: string
 ): Promise<void> {
-  if (resolveProvider() === "postgres") {
-    await initPostgresSchema();
-    const pool = getPostgresPool();
-    const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
-
-    await pool.query(
-      `
-        INSERT INTO due_snapshots (learner_id, day, due_count, updated_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (learner_id, day)
-        DO UPDATE SET due_count = EXCLUDED.due_count, updated_at = EXCLUDED.updated_at
-      `,
-      [learnerId, day, dueCount]
-    );
-    return;
-  }
-
-  sqliteDb.recordDueSnapshot(day, dueCount, userId);
+  await pool.query(
+    `
+      INSERT INTO review_counts (learner_id, day, count, updated_at)
+      VALUES ($1, $2, 1, NOW())
+      ON CONFLICT (learner_id, day)
+      DO UPDATE SET count = review_counts.count + 1, updated_at = NOW()
+    `,
+    [learnerId, day]
+  );
 }
 
 export async function submitSentenceReview(
@@ -818,6 +809,8 @@ export async function submitSentenceReview(
       `,
       [nextStage, nextReviewAt, reviewedAt, result, sentenceId, learnerId]
     );
+
+    await incrementPostgresReviewCount(pool, reviewedAt.slice(0, 10), learnerId);
 
     return getPostgresReviewState(pool, sentenceId, learnerId);
   }

@@ -8,8 +8,8 @@ import {
 } from "@/lib/review";
 import type {
   AnalysisResult,
-  DueSnapshot,
   ProgressRow,
+  ReviewCount,
   ReviewQueueItem,
   ReviewQueueResult,
   ReviewResult,
@@ -123,15 +123,15 @@ function runMigrations(database: Database.Database): void {
   migrateCreateDefaultUser(database);
   migrateAddAudioDataColumn(database);
   migrateAddTtsVoiceIdColumn(database);
-  migrateCreateDueSnapshotsTable(database);
+  migrateCreateReviewCountsTable(database);
 }
 
-function migrateCreateDueSnapshotsTable(database: Database.Database): void {
+function migrateCreateReviewCountsTable(database: Database.Database): void {
   database.exec(`
-    CREATE TABLE IF NOT EXISTS due_snapshots (
+    CREATE TABLE IF NOT EXISTS review_counts (
       learner_id TEXT NOT NULL,
       day TEXT NOT NULL,
-      due_count INTEGER NOT NULL,
+      count INTEGER NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (learner_id, day)
     );
@@ -759,38 +759,39 @@ export function getProgressRows(userId?: number): ProgressRow[] {
   }));
 }
 
-export function getDueSnapshots(sinceDay: string, userId?: number): DueSnapshot[] {
+export function getReviewCounts(sinceDay: string, userId?: number): ReviewCount[] {
   const database = getDb();
   const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
 
   const rows = database
     .prepare(
       `
-        SELECT day, due_count
-        FROM due_snapshots
+        SELECT day, count
+        FROM review_counts
         WHERE learner_id = ? AND day >= ?
         ORDER BY day ASC
       `
     )
-    .all(learnerId, sinceDay) as { day: string; due_count: number }[];
+    .all(learnerId, sinceDay) as { day: string; count: number }[];
 
-  return rows.map((row) => ({ day: row.day, dueCount: row.due_count }));
+  return rows.map((row) => ({ day: row.day, count: row.count }));
 }
 
-export function recordDueSnapshot(day: string, dueCount: number, userId?: number): void {
-  const database = getDb();
-  const learnerId = userId ? String(userId) : DEFAULT_LEARNER_ID;
-
+function incrementReviewCount(
+  database: Database.Database,
+  day: string,
+  learnerId: string
+): void {
   database
     .prepare(
       `
-        INSERT INTO due_snapshots (learner_id, day, due_count, updated_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO review_counts (learner_id, day, count, updated_at)
+        VALUES (?, ?, 1, ?)
         ON CONFLICT (learner_id, day)
-        DO UPDATE SET due_count = excluded.due_count, updated_at = excluded.updated_at
+        DO UPDATE SET count = count + 1, updated_at = excluded.updated_at
       `
     )
-    .run(learnerId, day, dueCount, new Date().toISOString());
+    .run(learnerId, day, new Date().toISOString());
 }
 
 export function submitSentenceReview(
@@ -838,6 +839,8 @@ export function submitSentenceReview(
       sentenceId,
       learnerId
     );
+
+  incrementReviewCount(database, reviewedAt.slice(0, 10), learnerId);
 
   return getSentenceReviewState(sentenceId, learnerId);
 }

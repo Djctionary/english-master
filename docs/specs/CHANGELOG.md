@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.4-alpha — Reviewed-Per-Day Chart (23/06/2026)
+
+Refined the Review page's learning-activity chart and stat labels.
+
+- **Review stat labels clarified:** "Due" → **"Due Today"**, "Reviewed" → **"Reviewed Today"** so the strip reads as a daily snapshot
+- **Top chart panel now tracks reviews, not the due backlog:** the panel retitled to **"Sentences reviewed each day"** and now plots the actual number of reviews submitted per day instead of the point-in-time due count
+  - New `review_counts` table (SQLite + Postgres), incremented inside `submitSentenceReview` keyed on the review's UTC day
+  - `getReviewCounts()` replaces `getDueSnapshots()`; `/api/progress` reads the review log and no longer writes a due snapshot on each visit
+  - `ProgressPoint.due` → `reviewed`; `buildProgressData` folds the review log into the per-day series (days before logging began default to 0)
+  - Tooltip ("Reviewed that day") and legend ("Reviewed each day") updated to match
+- **Home page version badge bumped to V1.4.4 Alpha**
+
+---
+
 ## v1.4.3-alpha — Tag List Sync + Dropdown Fix (16/06/2026)
 
 Fixed two tag-related issues in the Learn workspace.
