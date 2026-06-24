@@ -165,6 +165,8 @@ export interface ReviewQueueResult {
   totalSentences: number;
   dueCount: number;
   masteredCount: number;
+  /** Reviews already submitted today (UTC), persisted across reloads */
+  reviewedToday: number;
 }
 
 /**

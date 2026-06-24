@@ -685,6 +685,12 @@ export function getReviewQueue(options?: {
     )
     .get(learnerId) as { count: number };
 
+  const reviewedTodayRow = database
+    .prepare(
+      `SELECT count FROM review_counts WHERE learner_id = ? AND day = ?`
+    )
+    .get(learnerId, now.slice(0, 10)) as { count: number } | undefined;
+
   const rows = database
     .prepare(
       `
@@ -721,6 +727,7 @@ export function getReviewQueue(options?: {
     totalSentences: totalCountRow.count,
     dueCount: dueCountRow.count,
     masteredCount: masteredCountRow.count,
+    reviewedToday: reviewedTodayRow?.count ?? 0,
   };
 }
 

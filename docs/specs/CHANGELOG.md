@@ -10,6 +10,7 @@ Refined the Review page's learning-activity chart and stat labels.
   - `getReviewCounts()` replaces `getDueSnapshots()`; `/api/progress` reads the review log and no longer writes a due snapshot on each visit
   - `ProgressPoint.due` → `reviewed`; `buildProgressData` folds the review log into the per-day series (days before logging began default to 0)
   - Tooltip ("Reviewed that day") and legend ("Reviewed each day") updated to match
+- **"Reviewed Today" survives a page refresh:** the stat was session-only state (reset to 0 on every load). The review queue now returns a persisted `reviewedToday` (from `review_counts`), and the stat shows that baseline plus the live in-session delta
 - **Home page version badge bumped to V1.4.4 Alpha**
 
 ---

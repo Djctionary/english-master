@@ -627,7 +627,7 @@ export async function getReviewQueue(options?: {
     const now = options?.now ?? new Date().toISOString();
     const userFilter = options?.userId ? ` WHERE user_id = ${options.userId}` : "";
 
-    const [totalCountResult, dueCountResult, masteredCountResult, queueResult] =
+    const [totalCountResult, dueCountResult, masteredCountResult, reviewedTodayResult, queueResult] =
       await Promise.all([
         pool.query<{ count: string }>(
           `SELECT COUNT(*) as count FROM sentences${userFilter}`
@@ -652,6 +652,10 @@ export async function getReviewQueue(options?: {
               AND stage >= 8
           `,
           [learnerId]
+        ),
+        pool.query<{ count: string }>(
+          `SELECT count FROM review_counts WHERE learner_id = $1 AND day = $2`,
+          [learnerId, now.slice(0, 10)]
         ),
         pool.query<PostgresReviewQueueRow>(
           `
@@ -689,6 +693,7 @@ export async function getReviewQueue(options?: {
       totalSentences: parseInt(totalCountResult.rows[0].count, 10),
       dueCount: parseInt(dueCountResult.rows[0].count, 10),
       masteredCount: parseInt(masteredCountResult.rows[0].count, 10),
+      reviewedToday: reviewedTodayResult.rows[0] ? parseInt(reviewedTodayResult.rows[0].count, 10) : 0,
     };
   }
 
